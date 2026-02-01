@@ -22,7 +22,7 @@
 ## 2. 技术栈 (The Vibe Stack)
 
 - **语言环境**: Python 3.13 (由 `uv` 管理)
-- **Web 框架**: Django 5.1+ & Django Ninja (API)
+- **Web 框架**: Django 6+ & Django Ninja (API)
 - **应用服务器**: Uvicorn (ASGI Production Server)
 - **鉴权**: Django Ninja JWT (JWT Auth)
 - **后台 UI**: Django Unfold (替代原生 Admin，提供现代 UX)
@@ -32,7 +32,7 @@
   - whitenoise (静态文件服务)
 - **数据库**:
   - PostgreSQL 17+ (Primary - 元数据)
-  - Apache IoTDB 1.3+ (Time-series - 遥测数据)
+  - Apache IoTDB 2.0.6+ (Time-series - 遥测数据)
 - **测试**: Pytest + Pytest-Django + Pytest-Asyncio + Model Bakery (数据工厂)
 - **工具链**: Ruff (Lint/Format), Pre-commit, Django Extensions
 
@@ -217,7 +217,7 @@ services:
       retries: 5
 
   iotdb:
-    image: apache/iotdb:1.3.0-standalone
+    image: apache/iotdb:2.0.6-standalone
     container_name: cosray_iotdb
     ports:
       - "6667:6667"
