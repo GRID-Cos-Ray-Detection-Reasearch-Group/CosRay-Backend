@@ -1,0 +1,57 @@
+exclude: ".venv|CHANGELOG.md|CONTRIBUTORS.md"
+default_stages: [pre-commit]
+minimum_pre_commit_version: "3.2.0"
+
+default_language_version:
+  python: python3.13
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-json
+      - id: check-toml
+      - id: check-xml
+      - id: check-yaml
+      - id: debug-statements
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v4.0.0-alpha.8"
+    hooks:
+      - id: prettier
+        args: ["--tab-width", "2"]
+
+  - repo: https://github.com/djlint/djLint
+    rev: v1.36.4
+    hooks:
+      - id: djlint-reformat-django
+      - id: djlint-django
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.14
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.19.1
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - django-stubs
+          - django>=6.0.1
+          - django-ninja>=1.5.3
+          - django-ninja-jwt>=5.4.4
+          - django-unfold>=0.77.1
+
+default_install_hook_types: [pre-commit, prepare-commit-msg]
+ci:
+  autofix_commit_msg: "chore: Auto fix by pre-commit hooks [skip changelog]"
+  autofix_prs: true
+  autoupdate_commit_msg: "chore: Auto update by pre-commit hooks [skip changelog]"
