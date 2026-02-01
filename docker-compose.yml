@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: cosray_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cosray
+      POSTGRES_USER: cosray
+      POSTGRES_PASSWORD: cosray
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosray -d cosray"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  iotdb:
+    image: apache/iotdb:2.0.6-standalone
+    container_name: cosray_iotdb
+    restart: unless-stopped
+    environment:
+      - dn_rpc_address=0.0.0.0
+      - dn_rpc_port=6667
+      - dn_internal_address=127.0.0.1
+      - dn_internal_port=10730
+      - dn_data_region_consensus_port=10760
+      - dn_schema_region_consensus_port=10750
+    ports:
+      - "6667:6667" # RPC 端口
+      - "6668:6668" # REST API 端口
+    volumes:
+      - iotdb_data:/iotdb/data
+      - iotdb_logs:/iotdb/logs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6668/ping || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+  iotdb_data:
+  iotdb_logs:
