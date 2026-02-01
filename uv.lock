@@ -125,11 +125,14 @@ source = { virtual = "." }
 dependencies = [
     { name = "apache-iotdb" },
     { name = "django" },
+    { name = "django-cors-headers" },
+    { name = "django-environ" },
     { name = "django-ninja" },
     { name = "django-ninja-jwt" },
     { name = "django-unfold" },
     { name = "psycopg2-binary" },
     { name = "python-dotenv" },
+    { name = "whitenoise" },
 ]
 
 [package.dev-dependencies]
@@ -147,11 +150,14 @@ dev = [
 requires-dist = [
     { name = "apache-iotdb", specifier = ">=2.0.6" },
     { name = "django", specifier = ">=6.0.1" },
+    { name = "django-cors-headers", specifier = ">=4.9.0" },
+    { name = "django-environ", specifier = ">=0.12.0" },
     { name = "django-ninja", specifier = ">=1.5.3" },
     { name = "django-ninja-jwt", specifier = ">=5.4.4" },
     { name = "django-unfold", specifier = ">=0.77.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.11" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "whitenoise", specifier = ">=6.11.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -239,6 +245,28 @@ dependencies = [
 sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/b5/9b/016f7e55e855ee738a352b05139d4f8b278d0b451bd01ebef07456ef3b0e/django-6.0.1.tar.gz", hash = "sha256:ed76a7af4da21551573b3d9dfc1f53e20dd2e6c7d70a3adc93eedb6338130a5f", size = 11069565, upload-time = "2026-01-06T18:55:53.069Z" }
 wheels = [
     { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/95/b5/814ed98bd21235c116fd3436a7ed44d47560329a6d694ec8aac2982dbb93/django-6.0.1-py3-none-any.whl", hash = "sha256:a92a4ff14f664a896f9849009cb8afaca7abe0d6fc53325f3d1895a15253433d", size = 8338791, upload-time = "2026-01-06T18:55:46.175Z" },
+]
+
+[[package]]
+name = "django-cors-headers"
+version = "4.9.0"
+source = { registry = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/" }
+dependencies = [
+    { name = "asgiref" },
+    { name = "django" },
+]
+sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/21/39/55822b15b7ec87410f34cd16ce04065ff390e50f9e29f31d6d116fc80456/django_cors_headers-4.9.0.tar.gz", hash = "sha256:fe5d7cb59fdc2c8c646ce84b727ac2bca8912a247e6e68e1fb507372178e59e8", size = 21458, upload-time = "2025-09-18T10:40:52.326Z" }
+wheels = [
+    { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/30/d8/19ed1e47badf477d17fb177c1c19b5a21da0fd2d9f093f23be3fb86c5fab/django_cors_headers-4.9.0-py3-none-any.whl", hash = "sha256:15c7f20727f90044dcee2216a9fd7303741a864865f0c3657e28b7056f61b449", size = 12809, upload-time = "2025-09-18T10:40:50.843Z" },
+]
+
+[[package]]
+name = "django-environ"
+version = "0.12.0"
+source = { registry = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/" }
+sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/d6/04/65d2521842c42f4716225f20d8443a50804920606aec018188bbee30a6b0/django_environ-0.12.0.tar.gz", hash = "sha256:227dc891453dd5bde769c3449cf4a74b6f2ee8f7ab2361c93a07068f4179041a", size = 56804, upload-time = "2025-01-13T17:03:37.74Z" }
+wheels = [
+    { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/83/b3/0a3bec4ecbfee960f39b1842c2f91e4754251e0a6ed443db9fe3f666ba8f/django_environ-0.12.0-py2.py3-none-any.whl", hash = "sha256:92fb346a158abda07ffe6eb23135ce92843af06ecf8753f43adf9d2366dcc0ca", size = 19957, upload-time = "2025-01-13T17:03:32.918Z" },
 ]
 
 [[package]]
@@ -1040,4 +1068,13 @@ dependencies = [
 sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/aa/a3/4d310fa5f00863544e1d0f4de93bddec248499ccf97d4791bc3122c9d4f3/virtualenv-20.36.1.tar.gz", hash = "sha256:8befb5c81842c641f8ee658481e42641c68b5eab3521d8e092d18320902466ba", size = 6032239, upload-time = "2026-01-09T18:21:01.296Z" }
 wheels = [
     { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/6a/2a/dc2228b2888f51192c7dc766106cd475f1b768c10caaf9727659726f7391/virtualenv-20.36.1-py3-none-any.whl", hash = "sha256:575a8d6b124ef88f6f51d56d656132389f961062a9177016a50e4f507bbcc19f", size = 6008258, upload-time = "2026-01-09T18:20:59.425Z" },
+]
+
+[[package]]
+name = "whitenoise"
+version = "6.11.0"
+source = { registry = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple/" }
+sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/15/95/8c81ec6b6ebcbf8aca2de7603070ccf37dbb873b03f20708e0f7c1664bc6/whitenoise-6.11.0.tar.gz", hash = "sha256:0f5bfce6061ae6611cd9396a8231e088722e4fc67bc13a111be74c738d99375f", size = 26432, upload-time = "2025-09-18T09:16:10.995Z" }
+wheels = [
+    { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/6c/e9/4366332f9295fe0647d7d3251ce18f5615fbcb12d02c79a26f8dba9221b3/whitenoise-6.11.0-py3-none-any.whl", hash = "sha256:b2aeb45950597236f53b5342b3121c5de69c8da0109362aee506ce88e022d258", size = 20197, upload-time = "2025-09-18T09:16:09.754Z" },
 ]
