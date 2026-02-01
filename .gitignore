@@ -75,6 +75,8 @@ ENV/
 # mypy
 .mypy_cache/
 
+# ruff
+.ruff_cache/
 
 ### Node template
 # Logs
