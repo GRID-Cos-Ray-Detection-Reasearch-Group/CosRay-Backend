@@ -65,7 +65,7 @@ class DetectorUpdate(Schema):
 # ============================================================================
 
 
-class MuonEvent(Schema):
+class MuonEventSchema(Schema):
     """单个 Muon 事件"""
 
     cpu_time: int  # uint64
@@ -74,12 +74,12 @@ class MuonEvent(Schema):
     timestamp: int | None = None  # 可选的毫秒级时间戳
 
 
-class MuonPacket(Schema):
+class MuonPacketSchema(Schema):
     """Muon 数据包 (35 个事件)"""
 
     package_counter: int  # uint32 全局包计数
     utc: int  # uint32 首事件 UTC 时间戳 (秒)
-    events: list[MuonEvent]  # 最多 35 个事件
+    events: list[MuonEventSchema]  # 最多 35 个事件
     head: list[int] | None = None  # [0xAA, 0xBB, 0xCC]
     tail: list[int] | None = None  # [0xDD, 0xEE, 0xFF]
     crc: int | None = None  # uint16 校验
@@ -90,7 +90,7 @@ class MuonPacket(Schema):
 # ============================================================================
 
 
-class TimelineEvent(Schema):
+class TimelineEventSchema(Schema):
     """单个 Timeline 事件"""
 
     cpu_time: int  # uint64
@@ -111,11 +111,11 @@ class TimelineEvent(Schema):
     timestamp: int | None = None  # 可选的毫秒级时间戳
 
 
-class TimelinePacket(Schema):
+class TimelinePacketSchema(Schema):
     """Timeline 数据包 (10 个事件)"""
 
     package_counter: int  # uint32 全局包计数
-    events: list[TimelineEvent]  # 最多 10 个事件
+    events: list[TimelineEventSchema]  # 最多 10 个事件
     head: list[int] | None = None  # [0x12, 0x34, 0x56]
     tail: list[int] | None = None  # [0x78, 0x9A, 0xBC]
     crc: int | None = None  # uint16 校验
@@ -126,16 +126,16 @@ class TimelinePacket(Schema):
 # ============================================================================
 
 
-class PacketUpload(Schema):
+class PacketUploadSchema(Schema):
     """数据包上传请求"""
 
     device: str  # MAC 地址
     packet_type: Literal["muon", "timeline"]
-    muon_packet: MuonPacket | None = None
-    timeline_packet: TimelinePacket | None = None
+    muon_packet: MuonPacketSchema | None = None
+    timeline_packet: TimelinePacketSchema | None = None
 
 
-class PacketUploadResponse(Schema):
+class PacketUploadResponseSchema(Schema):
     """数据包上传响应"""
 
     device: str

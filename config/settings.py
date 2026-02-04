@@ -18,7 +18,14 @@ env = environ.Env(
 )
 
 # 读取 .env 文件
-environ.Env.read_env(BASE_DIR / ".env")
+# 优先读取根目录 .env,如果不存在则尝试读取 .envs/.local 下的配置
+if (BASE_DIR / ".env").exists():
+    env.read_env(BASE_DIR / ".env")
+else:
+    local_env_dir = BASE_DIR / ".envs" / ".local"
+    if local_env_dir.exists():
+        env.read_env(local_env_dir / ".django")
+        env.read_env(local_env_dir / ".postgres")
 
 # 核心配置
 SECRET_KEY = env("SECRET_KEY")

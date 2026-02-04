@@ -3,7 +3,6 @@ IoTDB 服务层: 负责时序数据写入和连接池管理
 """
 
 import logging
-from functools import lru_cache
 from typing import TYPE_CHECKING
 
 from django.conf import settings
@@ -13,8 +12,8 @@ from iotdb.utils.IoTDBConstants import TSDataType
 if TYPE_CHECKING:
     from iotdb.Session import Session
 
-from .schemas import MuonPacket
-from .schemas import TimelinePacket
+from .schemas import MuonPacketSchema
+from .schemas import TimelinePacketSchema
 
 logger = logging.getLogger(__name__)
 
@@ -23,24 +22,26 @@ logger = logging.getLogger(__name__)
 # 连接池管理
 # ============================================================================
 
+_session_pool = None
 
-@lru_cache(maxsize=1)
-def get_iotdb_pool() -> SessionPool:
+
+def get_iotdb_session() -> SessionPool:
     """
     获取 IoTDB SessionPool 单例
-    使用 lru_cache 确保全局只创建一次连接池
     """
-    pool = SessionPool(
-        host=settings.IOTDB_HOST,
-        port=settings.IOTDB_PORT,
-        user=settings.IOTDB_USER,
-        password=settings.IOTDB_PASSWORD,
-        fetch_size=1024,
-        max_size=5,  # 根据并发量调整
-        timeout_ms=30000,
-    )
-    logger.info("IoTDB SessionPool 已创建: %s:%s", settings.IOTDB_HOST, settings.IOTDB_PORT)
-    return pool
+    global _session_pool  # noqa: PLW0603
+    if _session_pool is None:
+        _session_pool = SessionPool(
+            host=settings.IOTDB_HOST,
+            port=settings.IOTDB_PORT,
+            user=settings.IOTDB_USER,
+            password=settings.IOTDB_PASSWORD,
+            fetch_size=1024,
+            max_size=5,  # 根据并发量调整
+            timeout_ms=30000,
+        )
+        logger.info("IoTDB SessionPool 已创建: %s:%s", settings.IOTDB_HOST, settings.IOTDB_PORT)
+    return _session_pool
 
 
 # ============================================================================
@@ -63,7 +64,7 @@ def normalize_device_path(mac_address: str) -> str:
 # ============================================================================
 
 
-def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
+def ingest_muon_packet(device_mac: str, packet: MuonPacketSchema) -> int:
     """
     将 Muon 数据包写入 IoTDB
 
@@ -73,7 +74,7 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
         logger.warning("Muon packet from %s has no events", device_mac)
         return 0
 
-    pool = get_iotdb_pool()
+    pool = get_iotdb_session()
     session: Session = pool.get_session()
 
     try:
@@ -120,7 +121,7 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
 # ============================================================================
 
 
-def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
+def ingest_timeline_packet(device_mac: str, packet: TimelinePacketSchema) -> int:
     """
     将 Timeline 数据包写入 IoTDB
 
@@ -130,7 +131,7 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
         logger.warning("Timeline packet from %s has no events", device_mac)
         return 0
 
-    pool = get_iotdb_pool()
+    pool = get_iotdb_session()
     session: Session = pool.get_session()
 
     try:

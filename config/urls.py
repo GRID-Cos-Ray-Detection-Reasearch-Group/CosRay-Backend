@@ -8,6 +8,7 @@ from ninja import NinjaAPI
 from ninja_jwt.routers.obtain import obtain_pair_router
 from ninja_jwt.routers.verify import verify_router
 
+from core.api import public_router
 from core.api import router as core_router
 
 # 创建 NinjaAPI 实例
@@ -16,6 +17,8 @@ api = NinjaAPI(
     version="1.0.0",
     description="宇宙射线探测系统后端 API",
 )
+
+api.add_router("", public_router)
 
 # 注册 JWT 路由
 api.add_router("/token/", tags=["Authentication"], router=obtain_pair_router)

@@ -17,8 +17,8 @@ from .schemas import DetectorCreate
 from .schemas import DetectorOut
 from .schemas import DetectorUpdate
 from .schemas import ErrorResponse
-from .schemas import PacketUpload
-from .schemas import PacketUploadResponse
+from .schemas import PacketUploadResponseSchema
+from .schemas import PacketUploadSchema
 from .services import ingest_muon_packet
 from .services import ingest_timeline_packet
 
@@ -26,6 +26,26 @@ logger = logging.getLogger(__name__)
 
 # 创建路由器, 默认使用 JWT 认证
 router = Router(auth=JWTAuth())
+
+# 创建无需认证的公共路由
+public_router = Router()
+
+
+# ============================================================================
+
+
+@public_router.get("/health", tags=["System"])
+def health_check(request: HttpRequest) -> dict[str, str]:
+    """
+    健康检查端点
+
+    用于 Docker 容器健康检查和负载均衡器探活
+    """
+    return {
+        "status": "healthy",
+        "service": "cosray-backend",
+        "version": "1.0.0",
+    }
 
 
 # ============================================================================
@@ -133,10 +153,12 @@ def delete_device(request: HttpRequest, device_id: int) -> tuple[int, None]:
 
 @router.post(
     "/mu-packets/",
-    response={200: PacketUploadResponse, 400: ErrorResponse, 404: ErrorResponse},
+    response={200: PacketUploadResponseSchema, 400: ErrorResponse, 404: ErrorResponse},
     tags=["Data Packets"],
 )
-def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadResponse | tuple[int, ErrorResponse]:
+def upload_packet(
+    request: HttpRequest, payload: PacketUploadSchema
+) -> PacketUploadResponseSchema | tuple[int, ErrorResponse]:
     """
     上传数据包(Muon 或 Timeline)
 
@@ -191,7 +213,7 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
             records_written,
         )
 
-        return PacketUploadResponse(
+        return PacketUploadResponseSchema(
             device=detector.mac_address,
             packet_type=payload.packet_type,
             records_written=records_written,
