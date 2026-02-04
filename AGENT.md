@@ -4,8 +4,17 @@
 
 你是一个 Python 专家开发者（全栈视野，后端专精）。
 你的目标是构建 `CosRay-Backend`，这是一个用于宇宙射线探测的高性能、轻量级 IoT 后端服务。
+**当前项目状态**:
 
-**核心哲学：**
+- ✅ 基础项目结构搭建完成
+- ✅ 核心模型 (Detector, Event) 已实现
+- ✅ API 端点 (设备管理、健康检查) 已实现
+- ✅ IoTDB 时序数据服务集成
+- ✅ JWT 认证系统配置
+- ✅ Docker 容器化配置 (本地/生产环境)
+- ✅ 完整的测试和代码质量工具链
+- 🔄 待实现: 数据包上传处理、完整API测试覆盖
+  **核心哲学：**
 
 1.  **极简主义**：不使用复杂的模板，不做过度封装，代码扁平化。
 2.  **基础设施即代码**：利用 `uv` 管理环境，`docker-compose` 管理服务。
@@ -49,18 +58,26 @@ CosRay-Backend/
 │   ├── settings.py      # 核心配置 (读取 os.environ)
 │   ├── urls.py          # 顶层路由
 │   └── wsgi.py
-├── Backend/                # 唯一的业务 App
+├── core/                # 唯一的业务 App
 │   ├── api.py           # 所有 API 入口 (Django Ninja)
 │   ├── models.py        # 核心关系模型 (Detector, Event)
 │   ├── schemas.py       # Pydantic 数据模型 (Request/Response)
 │   ├── services.py      # 业务逻辑 & IoTDB 封装
-│   ├── tests/           # 测试目录
-│   │   ├── conftest.py  # Pytest fixtures
-│   │   └── test_api.py
-│   └── admin.py         # Unfold 后台配置
+│   ├── tests.py         # 测试文件
+│   ├── admin.py         # Unfold 后台配置
+│   └── migrations/      # 数据库迁移文件
+├── compose/             # Docker 配置
+│   ├── local/           # 本地开发环境
+│   └── production/      # 生产环境
+├── docs/                # 项目文档
+│   ├── api.md           # API 文档
+│   ├── architecture.md  # 架构说明
+│   ├── development.md   # 开发指南
+│   └── plan.md          # 实施计划
 ├── manage.py
 ├── pyproject.toml       # 依赖管理 & 工具配置
-├── docker-compose.yml   # 数据库编排
+├── docker-compose.local.yml     # 本地开发环境编排
+├── docker-compose.production.yml # 生产环境编排
 └── .pre-commit-config.yaml
 ```
 
@@ -193,15 +210,31 @@ _在测试中，请使用 `unittest.mock.patch` 拦截 `get_iotdb_session`，不
 
 ### F. Docker 基础设施
 
-配置 PostgreSQL 和 IoTDB 服务，确保健康检查正常：
+项目提供本地开发和生产环境的完整Docker配置：
 
-以下仅为示例，不要直接使用，建议参考旧的后端进行修改
+- **本地开发**: `docker-compose.local.yml` - 包含Django应用、PostgreSQL和IoTDB
+- **生产环境**: `docker-compose.production.yml` - 包含Nginx反向代理、Django应用和数据库
+
+**本地开发环境示例** (docker-compose.local.yml):
 
 ```yaml
 services:
+  django:
+    build:
+      context: .
+      dockerfile: compose/local/django/Dockerfile
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      iotdb:
+        condition: service_healthy
+
   db:
     image: postgres:17
-    container_name: cosray_pg
     environment:
       POSTGRES_DB: cosray
       POSTGRES_USER: admin
@@ -218,7 +251,6 @@ services:
 
   iotdb:
     image: apache/iotdb:2.0.6-standalone
-    container_name: cosray_iotdb
     ports:
       - "6667:6667"
     environment:
@@ -227,7 +259,7 @@ services:
     volumes:
       - iotdb_data:/iotdb/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/ping"] # 假设开启了监控端口，或者用 tcp check
+      test: ["CMD", "nc", "-z", "localhost", "6667"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -239,10 +271,12 @@ volumes:
 
 ## 6. 常见问题排查
 
-1.  **连接拒绝**: 检查 `.env` 中的 `DB_HOST` 在 Docker 内是否应为 `db` 而非 `localhost` (如果 App 也在容器内)。
-2.  **Unfold 样式丢失**: 运行 `uv run python manage.py collectstatic` 并确保 `whitenoise` 配置正确。
-3.  **IoTDB 写入慢**: 检查是否使用了 SessionPool 以及是否批量写入 (InsertTablet)。
-4.  **JWT 认证失败**: 检查 Header 是否为 `Bearer <token>`。
+1.  **连接拒绝**: 检查 `.env` 中的数据库配置，在Docker环境中使用服务名而非 `localhost`
+2.  **Unfold 样式丢失**: 运行 `uv run python manage.py collectstatic` 并确保 `whitenoise` 配置正确
+3.  **IoTDB 写入慢**: 检查是否使用了 SessionPool 以及是否批量写入 (InsertTablet)
+4.  **JWT 认证失败**: 检查 Header 是否为 `Authorization: Bearer <token>`
+5.  **迁移失败**: 确保数据库服务正在运行，运行 `uv run python manage.py migrate`
+6.  **依赖问题**: 使用 `uv sync` 重新同步环境，确保 `uv.lock` 与 `pyproject.toml` 一致
 
 ---
 
@@ -363,7 +397,7 @@ class IoTDBWriteError(Exception):
 | CosRay-Detector-Firmware | `../CosRay-Detector-Firmware` | ESP32 固件，数据包格式来源   |
 | CosRay-Backend-Archive   | `../CosRay-Backend-Archive`   | 旧后端实现，参考代码来源     |
 
-详细实施计划参见 `docs/plan.md`。
+详细实施计划参见 `docs/plan.md`，API 文档参见 `docs/api.md`，开发指南参见 `docs/development.md`。
 
 ---
 
