@@ -43,7 +43,7 @@
 ```text
 CosRay-Backend/
 ├── .venv/               # uv 自动生成
-├── .env                 # (GitIgnored) 本地敏感配置
+├── .envs/               # 环境变量配置 (.local, .production)
 ├── .env.example         # 环境变量模版
 ├── config/              # Django 项目配置
 │   ├── settings.py      # 核心配置 (读取 os.environ)

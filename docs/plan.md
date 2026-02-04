@@ -2,6 +2,8 @@
 
 本计划为下级 Agent 提供详尽的上下文与步骤指导，用于构建一个基于 Django Ninja 的轻量级 IoT 后端服务，实现与 CosRay-App 的无缝对接。
 
+> **注意**: 本计划文档已过时，仅供参考。实际项目已完成基础架构搭建，请参考 [README.md](../README.md)、[架构说明](architecture.md)、[API 文档](api.md) 和 [开发指南](development.md)。
+
 ---
 
 ## 1. 项目背景与上下文
@@ -298,25 +300,25 @@ def normalize_device_path(mac_address: str) -> str:
 
 ## 5. 实施阶段
 
-### Phase 1: 基础设施配置
+### Phase 1: 基础设施配置 - 已完成
 
-#### 1.1 完善 config/settings.py
+#### 1.1 完善 config/settings.py - 已完成
 
-- [ ] 引入 `django-environ`
-- [ ] 配置 PostgreSQL (`DATABASE_URL`)
-- [ ] 配置 IoTDB 参数
-- [ ] 调整 `INSTALLED_APPS` 顺序 (`unfold` 在 `admin` 之前)
-- [ ] 添加 `corsheaders` 中间件
-- [ ] 添加 `whitenoise` 中间件
+- [x] 引入 `django-environ`
+- [x] 配置 PostgreSQL (`DATABASE_URL`)
+- [x] 配置 IoTDB 参数
+- [x] 调整 `INSTALLED_APPS` 顺序 (`unfold` 在 `admin` 之前)
+- [x] 添加 `corsheaders` 中间件
+- [x] 添加 `whitenoise` 中间件
 
-#### 1.2 创建 docker-compose.yml
+#### 1.2 创建 docker-compose.yml - 已完成
 
-- [ ] PostgreSQL 15 服务
-- [ ] IoTDB 1.3 服务
-- [ ] 健康检查配置
-- [ ] 数据卷持久化
+- [x] PostgreSQL 17 服务
+- [x] IoTDB 2.0 服务
+- [x] 健康检查配置
+- [x] 数据卷持久化
 
-#### 1.3 创建 .env.example
+#### 1.3 创建 .env.example - 已完成
 
 ```bash
 DEBUG=True
@@ -330,18 +332,16 @@ ALLOWED_HOSTS=localhost,127.0.0.1
 CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-### Phase 2: 数据模型层
+### Phase 2: 数据模型层 - 已完成
 
-#### 2.1 创建 Backend App
+#### 2.1 创建 Backend App - 已完成
 
-```bash
-uv run python manage.py startapp Backend
-```
+> 已创建 `core` App
 
-#### 2.2 实现 Detector 模型
+#### 2.2 实现 Detector 模型 - 已完成
 
 ```python
-# Backend/models.py
+# core/models.py
 class Detector(models.Model):
     mac_address = models.CharField(max_length=17, unique=True)
     name = models.CharField(max_length=100)
@@ -360,19 +360,19 @@ class Detector(models.Model):
         ordering = ["-created_at"]
 ```
 
-#### 2.3 实现 Pydantic Schemas
+#### 2.3 实现 Pydantic Schemas - 已完成
 
-- [ ] `MuonEventSchema`, `MuonPacketSchema`
-- [ ] `TimelineEventSchema`, `TimelinePacketSchema`
-- [ ] `PacketUploadSchema`, `PacketUploadResponseSchema`
-- [ ] `DeviceOutSchema`, `DeviceCreateSchema`, `DeviceUpdateSchema`
+- [x] `MuonEventSchema`, `MuonPacketSchema`
+- [x] `TimelineEventSchema`, `TimelinePacketSchema`
+- [x] `PacketUploadSchema`, `PacketUploadResponseSchema`
+- [x] `DeviceOutSchema`, `DeviceCreateSchema`, `DeviceUpdateSchema`
 
-### Phase 3: IoTDB 集成层
+### Phase 3: IoTDB 集成层 - 已完成
 
-#### 3.1 实现 SessionPool 管理
+#### 3.1 实现 SessionPool 管理 - 已完成
 
 ```python
-# Backend/services.py
+# core/services.py
 from iotdb.SessionPool import SessionPool
 from functools import lru_cache
 
@@ -387,15 +387,15 @@ def get_iotdb_pool() -> SessionPool:
     )
 ```
 
-#### 3.2 实现数据写入服务
+#### 3.2 实现数据写入服务 - 已完成
 
-- [ ] `normalize_device_path()`: MAC 地址路径化
-- [ ] `ingest_muon_packet()`: 写入 Muon 数据
-- [ ] `ingest_timeline_packet()`: 写入 Timeline 数据
+- [x] `normalize_device_path()`: MAC 地址路径化
+- [x] `ingest_muon_packet()`: 写入 Muon 数据
+- [x] `ingest_timeline_packet()`: 写入 Timeline 数据
 
-### Phase 4: API 开发层
+### Phase 4: API 开发层 - 已完成
 
-#### 4.1 配置 JWT 认证
+#### 4.1 配置 JWT 认证 - 已完成
 
 ```python
 # config/settings.py
@@ -406,10 +406,10 @@ NINJA_JWT = {
 }
 ```
 
-#### 4.2 实现 API 路由
+#### 4.2 实现 API 路由 - 已完成
 
 ```python
-# Backend/api.py
+# core/api.py
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
@@ -428,13 +428,13 @@ def upload_packet(request, payload: PacketUploadSchema):
     ...
 ```
 
-#### 4.3 更新 URL 配置
+#### 4.3 更新 URL 配置 - 已完成
 
 ```python
 # config/urls.py
 from ninja import NinjaAPI
 from ninja_jwt.controller import NinjaJWTDefaultController
-from Backend.api import router as backend_router
+from core.api import router as backend_router
 
 api = NinjaAPI()
 api.register_controllers(NinjaJWTDefaultController)
@@ -446,12 +446,12 @@ urlpatterns = [
 ]
 ```
 
-### Phase 5: 管理后台
+### Phase 5: 管理后台 - 已完成
 
-#### 5.1 配置 Unfold Admin
+#### 5.1 配置 Unfold Admin - 已完成
 
 ```python
-# Backend/admin.py
+# core/admin.py
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 from .models import Detector
@@ -463,12 +463,12 @@ class DetectorAdmin(ModelAdmin):
     search_fields = ["mac_address", "name", "owner__username"]
 ```
 
-### Phase 6: 测试层
+### Phase 6: 测试层 - 进行中
 
 #### 6.1 测试配置
 
 ```python
-# Backend/tests/conftest.py
+# core/tests/conftest.py
 import pytest
 from model_bakery import baker
 
@@ -478,7 +478,7 @@ def user(db):
 
 @pytest.fixture
 def detector(db, user):
-    return baker.make("Backend.Detector", owner=user)
+    return baker.make("core.Detector", owner=user)
 
 @pytest.fixture
 def mock_iotdb(monkeypatch):
@@ -486,11 +486,11 @@ def mock_iotdb(monkeypatch):
     def fake_write(device, records):
         captured["records"].extend(records)
         return len(records)
-    monkeypatch.setattr("Backend.services.write_records", fake_write)
+    monkeypatch.setattr("core.services.write_records", fake_write)
     return captured
 ```
 
-#### 6.2 测试用例
+#### 6.2 测试用例 - 待完成
 
 - [ ] 设备 CRUD 测试
 - [ ] 数据包上传测试 (mock IoTDB)
@@ -551,3 +551,54 @@ header("Authorization", "Bearer $accessToken")
 | -------- | ---------------------------------------- |
 | 主程序   | `CosRay-Detector-Firmware/main/main.c`   |
 | 配置定义 | `CosRay-Detector-Firmware/main/config.h` |
+
+---
+
+## 附录：项目当前状态
+
+### 已完成
+
+1. **基础设施**
+   - Docker Compose 配置（本地开发 + 生产环境）
+   - PostgreSQL 17 + Apache IoTDB 2.0 集成
+   - 环境变量配置（.env.example）
+
+2. **数据模型**
+   - Django 6 + Django Ninja 框架
+   - Detector 模型实现
+   - Pydantic Schemas（设备、数据包）
+
+3. **API 层**
+   - JWT 认证配置
+   - 设备 CRUD 端点
+   - 数据包上传端点
+   - 健康检查端点
+
+4. **管理后台**
+   - Django Unfold 集成
+   - 设备管理界面
+
+5. **文档**
+   - README.md（项目介绍和快速开始）
+   - docs/architecture.md（架构说明）
+   - docs/api.md（API 文档）
+   - docs/development.md（开发指南）
+
+### 待完成
+
+1. **测试**
+   - 单元测试
+   - 集成测试
+   - 测试覆盖率
+
+2. **生产部署**
+   - CI/CD 配置
+   - 监控和日志
+   - 备份策略
+
+### 参考文档
+
+- [项目主页](https://github.com/GRID-Cos-Ray-Detection-Reasearch-Group/CosRay-Backend)
+- [Django Ninja 文档](https://django-ninja.rest-framework.com/)
+- [Apache IoTDB 文档](https://iotdb.apache.org/)
+- [Django Unfold 文档](https://unfoldadmin.com/)
