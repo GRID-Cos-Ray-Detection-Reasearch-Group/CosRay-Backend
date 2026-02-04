@@ -1,0 +1,18 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# 运行数据库迁移
+>&2 echo "Running database migrations..."
+python manage.py migrate --noinput
+
+# 使用 Uvicorn 启动开发服务器（支持热重载）
+>&2 echo "Starting development server with hot reload..."
+exec uvicorn config.asgi:application \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --reload \
+    --reload-include '*.html' \
+    --reload-include '*.py'

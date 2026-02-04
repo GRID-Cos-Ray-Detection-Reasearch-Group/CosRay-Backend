@@ -1,0 +1,27 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# 运行数据库迁移
+>&2 echo "Running database migrations..."
+python /app/manage.py migrate --noinput
+
+# 收集静态文件
+>&2 echo "Collecting static files..."
+python /app/manage.py collectstatic --noinput --clear
+
+# 使用 Gunicorn + Uvicorn Worker 启动
+>&2 echo "Starting Gunicorn with Uvicorn workers..."
+exec gunicorn config.asgi:application \
+    --bind 0.0.0.0:5000 \
+    --chdir=/app \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --timeout 30 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info

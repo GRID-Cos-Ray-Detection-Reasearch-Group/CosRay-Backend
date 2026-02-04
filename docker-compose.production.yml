@@ -1,0 +1,101 @@
+version: "3.8"
+
+volumes:
+  production_postgres_data: {}
+  production_postgres_data_backups: {}
+  production_iotdb_data: {}
+  production_django_media: {}
+  production_django_static: {}
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+    image: cosray_backend_production_django
+    container_name: cosray_backend_production_django
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      iotdb:
+        condition: service_started
+    volumes:
+      - production_django_media:/app/media
+      - production_django_static:/app/staticfiles
+    env_file:
+      - .envs/.production/.django
+      - .envs/.production/.postgres
+    command: /start
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:17
+    container_name: cosray_backend_production_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cosray
+      POSTGRES_USER: cosray
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - production_postgres_data:/var/lib/postgresql/data
+      - production_postgres_data_backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosray -d cosray"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  iotdb:
+    image: apache/iotdb:2.0.6-standalone
+    container_name: cosray_backend_production_iotdb
+    restart: unless-stopped
+    ports:
+      - "6667:6667"
+      - "6668:6668"
+    environment:
+      - dn_rpc_address=0.0.0.0
+      - dn_rpc_port=6667
+      - dn_internal_address=127.0.0.1
+    volumes:
+      - production_iotdb_data:/iotdb/data
+
+  nginx:
+    build:
+      context: .
+      dockerfile: ./compose/production/nginx/Dockerfile
+    image: cosray_backend_production_nginx
+    container_name: cosray_backend_production_nginx
+    restart: unless-stopped
+    depends_on:
+      - django
+    volumes:
+      - production_django_media:/usr/share/nginx/media:ro
+      - production_django_static:/usr/share/nginx/static:ro
+    ports:
+      - "8080:80"
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -q --spider http://localhost:80/static/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 监控服务
+  # dozzle:
+  #   image: amir20/dozzle:latest
+  # container_name: cosray_backend_production_dozzle
+  # restart: unless-stopped
+  # ports:
+  #   - "8888:8080"
+  # volumes:
+  #   - /var/run/docker.sock:/var/run/docker.sock:ro
+  # environment:
+  #   - DOZZLE_NO_ANALYTICS=true
+  #   - DOZZLE_LEVEL=info
+  #   - DOZZLE_TAILSIZE=300
