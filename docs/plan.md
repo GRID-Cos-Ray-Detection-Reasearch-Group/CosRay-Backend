@@ -31,27 +31,21 @@ CosRay-Detector-Firmware (ESP32)
 
 ### 2.1 当前认证方式
 
-App 目前使用 `X-Session-Token` Header（基于 django-allauth headless）：
-
-```kotlin
-// CosRayApi.kt
-private fun HttpRequestBuilder.sessionToken(currentToken: String) {
-    header("X-Session-Token", currentToken)
-}
-```
-
-**迁移目标**: 标准 JWT Bearer Token
+当前以标准 JWT Bearer Token 作为唯一认证方式：
 
 ```
 Authorization: Bearer <access_token>
 ```
 
+认证契约以 `docs/requirements-v1.md` 为准。
+
 ### 2.2 API 端点清单
 
 | 端点                 | 方法   | 认证 | 说明                                |
 | -------------------- | ------ | ---- | ----------------------------------- |
-| `/api/auth/login`    | POST   | 否   | JWT 登录，返回 access/refresh token |
-| `/api/auth/refresh`  | POST   | 否   | 刷新 access token                   |
+| `/api/token/pair`    | POST   | 否   | JWT 登录，返回 access/refresh token |
+| `/api/token/refresh` | POST   | 否   | 刷新 access token                   |
+| `/api/token/verify`  | POST   | 否   | 验证 access token                   |
 | `/api/users/me`      | GET    | 是   | 获取当前用户信息                    |
 | `/api/devices/`      | GET    | 是   | 获取用户设备列表                    |
 | `/api/devices/`      | POST   | 是   | 注册新设备                          |
@@ -137,8 +131,8 @@ class PacketUploadResponseSchema:
 | utc          | 7    | 4    | uint32       | 首事件 UTC 时间           |
 | muonDataList | 11   | 490  | MuonData[35] | 35 个事件                 |
 | tail         | 501  | 3    | bytes        | 包尾 `[0xDD, 0xEE, 0xFF]` |
-| crc          | 504  | 2    | uint16       | XOR 校验                  |
-| reserved     | 506  | 6    | bytes        | 预留                      |
+| reserved     | 504  | 6    | bytes        | 预留                      |
+| crc          | 510  | 2    | uint16       | CRC16-CCITT 校验          |
 
 **MuonData 结构 (14字节)**:
 
@@ -176,8 +170,8 @@ class MuonPacketSchema(Schema):
 | pkgCnt           | 3    | 4    | uint32           | 全局包计数                |
 | timeLineDataList | 7    | 480  | TimeLineData[10] | 10 个事件                 |
 | tail             | 487  | 3    | bytes            | 包尾 `[0x78, 0x9A, 0xBC]` |
-| crc              | 490  | 2    | uint16           | XOR 校验                  |
-| reserve          | 492  | 20   | bytes            | 预留                      |
+| reserve          | 490  | 20   | bytes            | 预留                      |
+| crc              | 510  | 2    | uint16           | CRC16-CCITT 校验          |
 
 **TimeLineData 结构 (48字节)**:
 
@@ -240,6 +234,14 @@ App 使用 `@SerialName` 注解，后端需要对应处理：
 | `MCUTmp`         | `mcu_tmp`         | -            |
 | `ppsUtc`         | `pps_utc`         | -            |
 | `cputimePps`     | `cputime_pps`     | -            |
+
+### 3.4 App BLE 实现对齐（当前落地）
+
+- 扫描层：Nordic Scanner Compat（`BluetoothLeScannerCompat`）。
+- 连接层：Nordic BleManager（`NordicBleDeviceManager`）。
+- 接收链路：通知数据先转 `RawPacket`，再由 `TelemetryRepository` 进行 512B 组包。
+- 上传链路：组包成功后执行 `Protocol.*.fromRawData` 与 `ProtocolMapper.create*PacketRequest`。
+- 命令写入：统一走异步 `sendCommandQueued` 路径。
 
 ---
 
@@ -501,17 +503,9 @@ def mock_iotdb(monkeypatch):
 
 ## 6. 兼容性注意事项
 
-### 6.1 认证迁移
+### 6.1 认证口径
 
-App 端需要同步修改 `CosRayApi.kt`:
-
-```kotlin
-// 原来
-header("X-Session-Token", currentToken)
-
-// 改为
-header("Authorization", "Bearer $accessToken")
-```
+认证 Header 统一为 `Authorization: Bearer <access_token>`，不再使用 `X-Session-Token`。
 
 ### 6.2 时间戳精度
 

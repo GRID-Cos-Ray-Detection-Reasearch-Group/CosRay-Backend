@@ -139,6 +139,7 @@ class PacketUploadResponse(Schema):
     """数据包上传响应"""
 
     device: str
+    device_name: str
     packet_type: str
     records_written: int  # 写入 IoTDB 的记录数
     message: str
@@ -154,3 +155,16 @@ class ErrorResponse(Schema):
 
     detail: str
     code: str | None = None
+
+
+# ============================================================================
+# 用户相关 Schemas
+# ============================================================================
+
+
+class CurrentUserOut(Schema):
+    """当前用户信息输出模型"""
+
+    id: int
+    username: str
+    email: str

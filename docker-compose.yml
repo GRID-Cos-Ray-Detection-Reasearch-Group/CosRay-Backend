@@ -37,7 +37,7 @@ services:
       - iotdb_data:/iotdb/data
       - iotdb_logs:/iotdb/logs
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6668/ping || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/6667'"]
       interval: 10s
       timeout: 5s
       retries: 5
