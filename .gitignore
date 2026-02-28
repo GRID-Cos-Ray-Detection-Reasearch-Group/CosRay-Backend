@@ -277,6 +277,7 @@ cosray_backend/media/
 .ipython/
 .env
 .envs/*
+!.envs/.local/
 
 # sqlite database
 db.sqlite3

@@ -1,0 +1,13 @@
+#!/bin/bash
+
+set -o errexit
+set -o pipefail
+set -o nounset
+
+# 运行数据库迁移
+>&2 echo "Running database migrations..."
+python manage.py migrate --noinput
+
+# 使用 Django 开发服务器启动（支持自动重载）
+>&2 echo "Starting development server with auto reload..."
+exec python manage.py runserver 0.0.0.0:8000

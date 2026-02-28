@@ -1,0 +1,7 @@
+# PostgreSQL 本地开发配置
+# ------------------------------------------------------------------------------
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_DB=cosray
+POSTGRES_USER=cosray
+POSTGRES_PASSWORD=cosray

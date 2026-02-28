@@ -32,6 +32,12 @@ logger = logging.getLogger(__name__)
 router = Router(auth=JWTAuth())
 
 
+@router.get("/health", auth=None, tags=["System"])
+def health_check(request: HttpRequest) -> dict[str, str]:
+    """容器与负载均衡健康检查端点"""
+    return {"status": "ok"}
+
+
 def resolve_request_id(request: HttpRequest) -> str:
     """提取请求 ID，若缺失则生成"""
     request_id = request.headers.get("X-Request-ID", "").strip()
