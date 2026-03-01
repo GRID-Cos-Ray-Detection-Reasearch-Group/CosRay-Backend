@@ -19,7 +19,7 @@ services:
         condition: service_started
     volumes:
       # 保留虚拟环境在容器内，避免本地和容器冲突
-      - /app/.venv
+      - /workspace/.venv
       # 挂载代码到单独目录，避免覆盖容器内虚拟环境
       - .:/workspace:z
     working_dir: /workspace
@@ -37,7 +37,7 @@ services:
       start_period: 40s
 
   postgres:
-    image: postgres:17
+    image: docker.io/library/postgres:17
     container_name: cosray_backend_local_postgres
     restart: unless-stopped
     environment:
@@ -56,7 +56,7 @@ services:
       retries: 5
 
   iotdb:
-    image: apache/iotdb:2.0.6-standalone
+    image: docker.io/apache/iotdb:2.0.6-standalone
     container_name: cosray_backend_local_iotdb
     restart: unless-stopped
     ports:

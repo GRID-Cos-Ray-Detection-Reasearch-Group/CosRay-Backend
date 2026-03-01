@@ -21,7 +21,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONFAULTHANDLER=1 \
-    PATH="/app/.venv/bin:$PATH" \
+    PATH="/workspace/.venv/bin:$PATH" \
     DJANGO_SETTINGS_MODULE=config.settings
 
 # 配置 Debian TUNA 源（加速 apt）
