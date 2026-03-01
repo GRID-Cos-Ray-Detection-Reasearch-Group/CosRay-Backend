@@ -1,3 +1,5 @@
+import typing
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -40,7 +42,7 @@ class UploadValidationTest(TestCase):
         )
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
 
     def test_create_device_duplicate_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -50,7 +52,7 @@ class UploadValidationTest(TestCase):
         )
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "DEVICE_EXISTS")
+        self.assertEqual(getattr(response, "code", None), "DEVICE_EXISTS")
 
     def test_upload_packet_non_owned_device_returns_404(self) -> None:
         request = self._request_with_user(self.other_user)
@@ -63,7 +65,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 404)
-        self.assertEqual(response.code, "DEVICE_NOT_FOUND")
+        self.assertEqual(getattr(response, "code", None), "DEVICE_NOT_FOUND")
 
     def test_upload_packet_invalid_muon_head_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -81,7 +83,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_MUON_HEAD")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MUON_HEAD")
 
     def test_upload_packet_missing_muon_packet_returns_invalid_packet(self) -> None:
         request = self._request_with_user(self.user)
@@ -93,7 +95,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
 
     def test_upload_packet_timeline_events_over_limit_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -126,7 +128,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "TIMELINE_EVENTS_OVER_LIMIT")
+        self.assertEqual(getattr(response, "code", None), "TIMELINE_EVENTS_OVER_LIMIT")
 
     def test_upload_packet_timeline_invalid_head_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -161,7 +163,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_TIMELINE_HEAD")
+        self.assertEqual(getattr(response, "code", None), "INVALID_TIMELINE_HEAD")
 
     def test_upload_packet_missing_timeline_packet_returns_invalid_packet(self) -> None:
         request = self._request_with_user(self.user)
@@ -173,7 +175,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
 
     def test_upload_packet_invalid_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -182,10 +184,10 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
 
     @patch("core.api.ingest_muon_packet", side_effect=RuntimeError("iotdb failed"))
-    def test_upload_packet_iotdb_error_returns_400(self, mock_ingest) -> None:
+    def test_upload_packet_iotdb_error_returns_400(self, mock_ingest: MagicMock) -> None:
         request = self._request_with_user(self.user)
         payload = PacketUpload(
             device="AA:BB:CC:DD:EE:FF",
@@ -196,11 +198,11 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(response.code, "IOTDB_WRITE_ERROR")
+        self.assertEqual(getattr(response, "code", None), "IOTDB_WRITE_ERROR")
         mock_ingest.assert_called_once()
 
     @patch("core.api.ingest_muon_packet", return_value=1)
-    def test_upload_packet_success_updates_last_seen(self, mock_ingest) -> None:
+    def test_upload_packet_success_updates_last_seen(self, mock_ingest: MagicMock) -> None:
         request = self._request_with_user(self.user)
         payload = PacketUpload(
             device="AA:BB:CC:DD:EE:FF",
@@ -216,9 +218,9 @@ class UploadValidationTest(TestCase):
 
         response = upload_packet(request, payload)
 
-        self.assertEqual(response.records_written, 1)
-        self.assertEqual(response.device, "AA:BB:CC:DD:EE:FF")
-        self.assertEqual(response.device_name, "D1")
+        self.assertEqual(getattr(response, "records_written", None), 1)
+        self.assertEqual(getattr(response, "device", None), "AA:BB:CC:DD:EE:FF")
+        self.assertEqual(getattr(response, "device_name", None), "D1")
         self.detector.refresh_from_db()
         self.assertIsNotNone(self.detector.last_seen_at)
         mock_ingest.assert_called_once()
@@ -239,11 +241,11 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(pair_response.status_code, 200)
         self.access_token = pair_response.json()["access"]
 
-    def _auth_header(self) -> dict[str, str]:
+    def _auth_header(self) -> dict[str, typing.Any]:
         return {"HTTP_AUTHORIZATION": f"Bearer {self.access_token}"}
 
     @patch("core.api.ingest_timeline_packet", return_value=1)
-    def test_upload_timeline_success_path(self, mock_ingest) -> None:
+    def test_upload_timeline_success_path(self, mock_ingest: MagicMock) -> None:
         Detector.objects.create(
             mac_address="22:33:44:55:66:77",
             name="TimelineDevice",

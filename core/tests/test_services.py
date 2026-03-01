@@ -19,7 +19,7 @@ class IoTDBPathTest(SimpleTestCase):
         self.assertEqual(path, "root.cosray.AA_BB_CC_DD_EE_FF.muon")
 
     @patch("core.services.get_iotdb_pool")
-    def test_ingest_muon_packet_writes_to_muon_path(self, mock_get_pool) -> None:
+    def test_ingest_muon_packet_writes_to_muon_path(self, mock_get_pool: MagicMock) -> None:
         mock_session = MagicMock()
         mock_pool = MagicMock()
         mock_pool.get_session.return_value = mock_session
@@ -39,7 +39,7 @@ class IoTDBPathTest(SimpleTestCase):
         mock_pool.put_back.assert_called_once_with(mock_session)
 
     @patch("core.services.get_iotdb_pool")
-    def test_ingest_timeline_packet_writes_to_timeline_path(self, mock_get_pool) -> None:
+    def test_ingest_timeline_packet_writes_to_timeline_path(self, mock_get_pool: MagicMock) -> None:
         mock_session = MagicMock()
         mock_pool = MagicMock()
         mock_pool.get_session.return_value = mock_session

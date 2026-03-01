@@ -1,3 +1,5 @@
+import typing
+
 from django.contrib.auth.models import User
 from django.test import Client
 from django.test import TestCase
@@ -18,7 +20,7 @@ class DevicesHttpIntegrationTest(TestCase):
         self.assertEqual(pair_response.status_code, 200)
         self.access_token = pair_response.json()["access"]
 
-    def _auth_header(self) -> dict[str, str]:
+    def _auth_header(self) -> dict[str, typing.Any]:
         return {"HTTP_AUTHORIZATION": f"Bearer {self.access_token}"}
 
     def test_users_me_returns_authenticated_user(self) -> None:
