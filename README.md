@@ -120,6 +120,11 @@ uv run python manage.py makemigrations
 uv run python manage.py migrate
 ```
 
+## 性能测试
+
+- 压测与资源开销测量说明见 `docs/performance-testing.md`
+- 执行脚本：`scripts/perf/run_pressure_test.py`
+
 ## 📦 数据模型
 
 ### Detector (探测器设备)
