@@ -17,13 +17,15 @@ env = environ.Env(
     DEBUG=(bool, False),
 )
 
-# 读取 .env 文件
-environ.Env.read_env(BASE_DIR / ".env")
+# 读取 .env 文件（如果存在）
+env_file = BASE_DIR / ".env"
+if env_file.exists():
+    environ.Env.read_env(env_file)
 
 # 核心配置
-SECRET_KEY = env("SECRET_KEY")
-DEBUG = env("DEBUG")
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS")
+SECRET_KEY = env("SECRET_KEY", default="!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
+DEBUG = env.bool("DEBUG", default=False)
+ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 
 
 # Application definition
@@ -79,7 +81,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    "default": env.db(),  # 读取 DATABASE_URL
+    # 默认值使用一个无效的 URL 以强制开发者提供配置，但在 CI 中可被覆盖
+    "default": env.db("DATABASE_URL", default="postgres://localhost/dummy"),
 }
 
 
