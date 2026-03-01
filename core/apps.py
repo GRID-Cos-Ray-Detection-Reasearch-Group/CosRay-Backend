@@ -12,12 +12,13 @@ def auto_create_test_user(sender, **kwargs):
         return
 
     from django.contrib.auth import get_user_model
+
     User = get_user_model()
-    
+
     test_username = "test"
     test_password = "LocalPass123!"
     test_email = "test@example.com"
-    
+
     user, created = User.objects.get_or_create(
         username=test_username,
         defaults={
@@ -25,13 +26,13 @@ def auto_create_test_user(sender, **kwargs):
             "is_staff": True,
             "is_superuser": True,
             "is_active": True,
-        }
+        },
     )
-    
+
     # 始终重置密码，防止密码哈希改变或被手动修改后导致 App 端用预设密码登录失败
     user.set_password(test_password)
     user.save(update_fields=["password"])
-    
+
     action = "Created" if created else "Updated password for"
     print(f"[{sender.name}] {action} local dev test user: {test_username}")
 
@@ -42,4 +43,3 @@ class CoreConfig(AppConfig):
     def ready(self):
         # 绑定迁移后信号
         post_migrate.connect(auto_create_test_user, sender=self)
-

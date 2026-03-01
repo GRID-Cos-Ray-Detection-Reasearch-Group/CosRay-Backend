@@ -185,7 +185,7 @@ class UploadValidationTest(TestCase):
         self.assertEqual(response.code, "INVALID_MAC_ADDRESS")
 
     @patch("core.api.ingest_muon_packet", side_effect=RuntimeError("iotdb failed"))
-    def test_upload_packet_iotdb_error_returns_400(self, mock_ingest) -> None:  # noqa: ANN001
+    def test_upload_packet_iotdb_error_returns_400(self, mock_ingest) -> None:
         request = self._request_with_user(self.user)
         payload = PacketUpload(
             device="AA:BB:CC:DD:EE:FF",
@@ -200,7 +200,7 @@ class UploadValidationTest(TestCase):
         mock_ingest.assert_called_once()
 
     @patch("core.api.ingest_muon_packet", return_value=1)
-    def test_upload_packet_success_updates_last_seen(self, mock_ingest) -> None:  # noqa: ANN001
+    def test_upload_packet_success_updates_last_seen(self, mock_ingest) -> None:
         request = self._request_with_user(self.user)
         payload = PacketUpload(
             device="AA:BB:CC:DD:EE:FF",
@@ -243,7 +243,7 @@ class UploadHttpIntegrationTest(TestCase):
         return {"HTTP_AUTHORIZATION": f"Bearer {self.access_token}"}
 
     @patch("core.api.ingest_timeline_packet", return_value=1)
-    def test_upload_timeline_success_path(self, mock_ingest) -> None:  # noqa: ANN001
+    def test_upload_timeline_success_path(self, mock_ingest) -> None:
         Detector.objects.create(
             mac_address="22:33:44:55:66:77",
             name="TimelineDevice",

@@ -14,11 +14,11 @@ from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
 from .models import Detector
+from .schemas import CurrentUserOut
 from .schemas import DetectorCreate
 from .schemas import DetectorOut
 from .schemas import DetectorUpdate
 from .schemas import ErrorResponse
-from .schemas import CurrentUserOut
 from .schemas import PacketUpload
 from .schemas import PacketUploadResponse
 from .services import ingest_muon_packet
