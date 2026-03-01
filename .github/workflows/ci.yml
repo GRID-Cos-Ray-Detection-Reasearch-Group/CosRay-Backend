@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    paths:
+      - ".github/workflows/**"
+      - "core/**"
+      - "config/**"
+      - "manage.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - "compose/**"
+      - "docker-compose.*.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run Ruff (Linter & Formatter)
+        run: uv run ruff check . && uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: "sqlite:///db.sqlite3"
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Check Migrations
+        run: uv run python manage.py makemigrations --check
+
+      - name: Run DB Migrations
+        run: uv run python manage.py migrate
+
+      - name: Run Pytest
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings
+        run: uv run pytest -v
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+
+      - name: Test Docker Production Build
+        run: docker compose -f docker-compose.local.yml build django

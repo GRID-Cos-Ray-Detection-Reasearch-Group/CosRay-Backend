@@ -1,0 +1,70 @@
+version: "3.8"
+
+volumes:
+  local_postgres_data: {}
+  local_postgres_data_backups: {}
+  local_iotdb_data: {}
+
+services:
+  django:
+    build:
+      context: .
+      dockerfile: ./compose/local/django/Dockerfile
+    image: cosray_backend_local_django
+    container_name: cosray_backend_local_django
+    depends_on:
+      postgres:
+        condition: service_healthy
+      iotdb:
+        condition: service_started
+    volumes:
+      # 保留虚拟环境在容器内，避免本地和容器冲突
+      - /app/.venv
+      # 挂载代码到单独目录，避免覆盖容器内虚拟环境
+      - .:/workspace:z
+    working_dir: /workspace
+    env_file:
+      - .envs/.local/.django
+      - .envs/.local/.postgres
+    ports:
+      - "8000:8000"
+    command: /start
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:17
+    container_name: cosray_backend_local_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cosray
+      POSTGRES_USER: cosray
+      POSTGRES_PASSWORD: cosray
+    ports:
+      - "5432:5432"
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+      - local_postgres_data_backups:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cosray -d cosray"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  iotdb:
+    image: apache/iotdb:2.0.6-standalone
+    container_name: cosray_backend_local_iotdb
+    restart: unless-stopped
+    ports:
+      - "6667:6667"
+      - "6668:6668"
+    environment:
+      - dn_rpc_address=0.0.0.0
+      - dn_rpc_port=6667
+      - dn_internal_address=127.0.0.1
+    volumes:
+      - local_iotdb_data:/iotdb/data

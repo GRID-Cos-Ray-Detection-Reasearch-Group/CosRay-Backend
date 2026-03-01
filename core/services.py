@@ -5,8 +5,10 @@ IoTDB 服务层: 负责时序数据写入和连接池管理
 import logging
 from functools import lru_cache
 from typing import TYPE_CHECKING
+from typing import Literal
 
 from django.conf import settings
+from iotdb.SessionPool import PoolConfig
 from iotdb.SessionPool import SessionPool
 from iotdb.utils.IoTDBConstants import TSDataType
 
@@ -30,14 +32,18 @@ def get_iotdb_pool() -> SessionPool:
     获取 IoTDB SessionPool 单例
     使用 lru_cache 确保全局只创建一次连接池
     """
-    pool = SessionPool(
+    pool_config = PoolConfig(
         host=settings.IOTDB_HOST,
-        port=settings.IOTDB_PORT,
-        user=settings.IOTDB_USER,
+        port=str(settings.IOTDB_PORT),
+        user_name=settings.IOTDB_USER,
         password=settings.IOTDB_PASSWORD,
         fetch_size=1024,
-        max_size=5,  # 根据并发量调整
-        timeout_ms=30000,
+        connection_timeout_in_ms=30000,
+    )
+    pool = SessionPool(
+        pool_config=pool_config,
+        max_pool_size=5,  # 根据并发量调整
+        wait_timeout_in_ms=30000,
     )
     logger.info("IoTDB SessionPool 已创建: %s:%s", settings.IOTDB_HOST, settings.IOTDB_PORT)
     return pool
@@ -48,14 +54,19 @@ def get_iotdb_pool() -> SessionPool:
 # ============================================================================
 
 
-def normalize_device_path(mac_address: str) -> str:
+def normalize_device_path(mac_address: str, packet_type: Literal["muon", "timeline"] | None = None) -> str:
     """
     将 MAC 地址转换为 IoTDB 路径格式
 
-    例如: AA:BB:CC:DD:EE:FF -> root.cosray.AA_BB_CC_DD_EE_FF
+    例如:
+    - AA:BB:CC:DD:EE:FF -> root.cosray.AA_BB_CC_DD_EE_FF
+    - AA:BB:CC:DD:EE:FF + muon -> root.cosray.AA_BB_CC_DD_EE_FF.muon
     """
     sanitized = mac_address.strip().upper().replace(":", "_")
-    return f"root.cosray.{sanitized}"
+    base_path = f"root.cosray.{sanitized}"
+    if packet_type is None:
+        return base_path
+    return f"{base_path}.{packet_type}"
 
 
 # ============================================================================
@@ -77,7 +88,7 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
     session: Session = pool.get_session()
 
     try:
-        device_path = normalize_device_path(device_mac)
+        device_path = normalize_device_path(device_mac, "muon")
         measurements = ["cpu_time", "energy", "pps"]
         data_types = [TSDataType.INT64, TSDataType.INT32, TSDataType.INT64]
 
@@ -97,11 +108,11 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
 
         # 批量写入
         session.insert_records(
-            device_ids=[device_path] * len(timestamps),
-            timestamps_list=timestamps,
-            measurements_list=[measurements] * len(timestamps),
-            types_list=[data_types] * len(timestamps),
-            values_list=[[values_list[i][j] for i in range(3)] for j in range(len(timestamps))],
+            [device_path] * len(timestamps),
+            timestamps,
+            [measurements] * len(timestamps),
+            [data_types] * len(timestamps),
+            [[values_list[i][j] for i in range(3)] for j in range(len(timestamps))],
         )
 
         logger.info("Muon packet from %s written: %d records", device_mac, len(timestamps))
@@ -134,7 +145,7 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
     session: Session = pool.get_session()
 
     try:
-        device_path = normalize_device_path(device_mac)
+        device_path = normalize_device_path(device_mac, "timeline")
 
         # Timeline 指标更多
         measurements = [
@@ -200,11 +211,11 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
 
         # 批量写入
         session.insert_records(
-            device_ids=[device_path] * len(timestamps),
-            timestamps_list=timestamps,
-            measurements_list=[measurements] * len(timestamps),
-            types_list=[data_types] * len(timestamps),
-            values_list=[[values_list[i][j] for i in range(len(measurements))] for j in range(len(timestamps))],
+            [device_path] * len(timestamps),
+            timestamps,
+            [measurements] * len(timestamps),
+            [data_types] * len(timestamps),
+            [[values_list[i][j] for i in range(len(measurements))] for j in range(len(timestamps))],
         )
 
         logger.info(

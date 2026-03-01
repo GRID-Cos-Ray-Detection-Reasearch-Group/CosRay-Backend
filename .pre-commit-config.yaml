@@ -43,6 +43,7 @@ repos:
     rev: v1.19.1
     hooks:
       - id: mypy
+        args: ["--strict"]
         additional_dependencies:
           - django-stubs
           - django>=6.0.1

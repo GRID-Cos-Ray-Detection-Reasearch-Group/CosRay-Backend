@@ -1,0 +1,23 @@
+# Django 本地开发配置
+# ------------------------------------------------------------------------------
+DEBUG=True
+SECRET_KEY=unsafe-development-key-change-in-production
+ALLOWED_HOSTS=*
+
+# Database
+# 对应 docker-compose service name 'postgres'
+DATABASE_URL=postgres://cosray:cosray@postgres:5432/cosray
+
+# IoTDB
+# 对应 docker-compose service name 'iotdb'
+IOTDB_HOST=iotdb
+IOTDB_PORT=6667
+IOTDB_USER=root
+IOTDB_PASSWORD=root
+
+# Security
+CORS_ALLOW_ALL_ORIGINS=True
+
+# Auth
+JWT_ACCESS_TOKEN_LIFETIME_HOURS=24
+JWT_REFRESH_TOKEN_LIFETIME_DAYS=7
