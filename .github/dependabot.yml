@@ -1,0 +1,50 @@
+# Config for Dependabot updates. See Documentation here:
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # Update GitHub actions in workflows
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directories:
+      - "compose/local/django/"
+      - "compose/production/django/"
+      - "compose/production/nginx/"
+    schedule:
+      interval: "daily"
+    # Ignore major/minor version bumps, only update patch versions
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-major"
+          - "version-update:semver-minor"
+      - dependency-name: "postgres"
+    groups:
+      docker:
+        patterns:
+          - "*"
+
+  # Enable version updates for Docker Compose files
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+    schedule:
+      interval: "daily"
+    ignore:
+      - dependency-name: "postgres"
+
+  # Enable version updates for Python (uv)
+  - package-ecosystem: "uv"
+    directories:
+      - "/"
+    schedule:
+      interval: "daily"
