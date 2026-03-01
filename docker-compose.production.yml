@@ -4,6 +4,7 @@ volumes:
   production_postgres_data: {}
   production_postgres_data_backups: {}
   production_iotdb_data: {}
+  production_redis_data: {}
   production_django_media: {}
   production_django_static: {}
 
@@ -19,6 +20,8 @@ services:
       postgres:
         condition: service_healthy
       iotdb:
+        condition: service_started
+      redis:
         condition: service_started
     volumes:
       - production_django_media:/app/media
@@ -41,7 +44,7 @@ services:
     environment:
       POSTGRES_DB: cosray
       POSTGRES_USER: cosray
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-please-change-this-postgres-password}
     volumes:
       - production_postgres_data:/var/lib/postgresql/data
       - production_postgres_data_backups:/backups
@@ -64,6 +67,25 @@ services:
       - dn_internal_address=127.0.0.1
     volumes:
       - production_iotdb_data:/iotdb/data
+
+  redis:
+    image: redis:8-alpine
+    container_name: cosray_backend_production_redis
+    restart: unless-stopped
+    env_file:
+      - .envs/.production/.redis
+    command: sh -c 'redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"'
+    volumes:
+      - production_redis_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   nginx:
     build:
