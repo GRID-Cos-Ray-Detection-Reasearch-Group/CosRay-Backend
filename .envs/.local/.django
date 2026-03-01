@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 DEBUG=True
 SECRET_KEY=unsafe-development-key-change-in-production
-ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
+ALLOWED_HOSTS=*
 
 # Database
 # 对应 docker-compose service name 'postgres'
@@ -16,7 +16,7 @@ IOTDB_USER=root
 IOTDB_PASSWORD=root
 
 # Security
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+CORS_ALLOW_ALL_ORIGINS=True
 
 # Auth
 JWT_ACCESS_TOKEN_LIFETIME_HOURS=24
