@@ -293,5 +293,6 @@ class UploadHttpIntegrationTest(TestCase):
         response_payload = response.json()
         self.assertEqual(response_payload["records_written"], 1)
         self.assertEqual(response_payload["device"], "22:33:44:55:66:77")
+        self.assertEqual(response_payload["device_name"], "TimelineDevice")
         self.assertEqual(response_payload["packet_type"], "timeline")
         mock_ingest.assert_called_once()

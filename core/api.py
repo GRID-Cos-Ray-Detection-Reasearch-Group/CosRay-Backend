@@ -11,6 +11,7 @@ from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
+from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from .models import Detector
@@ -52,9 +53,10 @@ def format_log_context(**kwargs: str | int) -> str:
 
 
 def resolve_authenticated_user(request: HttpRequest) -> User:
-    """统一提取并断言已认证用户"""
+    """统一提取已认证用户，未认证则抛出 401"""
     user = request.user
-    assert isinstance(user, User), "User must be authenticated"
+    if not isinstance(user, User):
+        raise HttpError(401, "User must be authenticated")
     return user
 
 

@@ -42,5 +42,5 @@ class CoreConfig(AppConfig):
     name = "core"
 
     def ready(self) -> None:
-        # 绑定迁移后信号
-        post_migrate.connect(auto_create_test_user, sender=self)
+        # 绑定迁移后信号，无 sender，并通过 dispatch_uid 保证全项目仅注册一次该回调
+        post_migrate.connect(auto_create_test_user, dispatch_uid="core_auto_create_test_user")

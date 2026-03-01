@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.source="https://github.com/GRID-Cos-Ray-Detection
 LABEL org.opencontainers.image.description="CosRay Backend - Local Development"
 LABEL org.opencontainers.image.version="1.0.0"
 
-ARG APP_HOME=/app
+ARG APP_HOME=/workspace
 
 WORKDIR ${APP_HOME}
 
@@ -21,37 +21,32 @@ ENV UV_COMPILE_BYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONFAULTHANDLER=1 \
-    PATH="${APP_HOME}/.venv/bin:$PATH" \
+    PATH="/app/.venv/bin:$PATH" \
     DJANGO_SETTINGS_MODULE=config.settings
 
 # 配置 Debian TUNA 源（加速 apt）
 RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
-# 安装构建与运行依赖
-RUN apt-get update && \
-    apt-get install --no-install-recommends -y \
-      bash-completion \
-      build-essential \
-      curl \
-      gettext \
-      git \
-      libpq-dev \
-      nano \
-      ssh \
-      sudo \
-      vim \
-      wait-for-it && \
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false && \
-    rm -rf /var/lib/apt/lists/*
-
-# 复制项目代码
-COPY . ${APP_HOME}
-
-# 安装依赖（包括开发依赖）
+# 安装构建与运行依赖，并在同一层运行 uv sync 再 purge C 头文件等不需要的缓存
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=uv.lock,target=uv.lock,readonly \
-    uv sync --no-install-project --frozen
+    apt-get update && \
+    apt-get install --no-install-recommends -y \
+    bash-completion \
+    build-essential \
+    curl \
+    gettext \
+    git \
+    libpq-dev \
+    nano \
+    ssh \
+    sudo \
+    vim \
+    wait-for-it && \
+    uv sync --no-install-project --frozen && \
+    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false && \
+    rm -rf /var/lib/apt/lists/*
 
 # 创建开发用户并设置权限
 RUN groupadd --gid 1000 dev-user && \

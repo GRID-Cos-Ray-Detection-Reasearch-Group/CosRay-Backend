@@ -20,8 +20,9 @@ services:
     volumes:
       # 保留虚拟环境在容器内，避免本地和容器冲突
       - /app/.venv
-      # 挂载代码，实现热重载
-      - .:/app:z
+      # 挂载代码到单独目录，避免覆盖容器内虚拟环境
+      - .:/workspace:z
+    working_dir: /workspace
     env_file:
       - .envs/.local/.django
       - .envs/.local/.postgres

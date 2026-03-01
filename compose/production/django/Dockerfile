@@ -23,21 +23,18 @@ ENV UV_COMPILE_BYTECODE=1 \
 # 配置 Debian TUNA 源（加速 apt）
 RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
-# 安装构建依赖（单层优化）
-RUN apt-get update && apt-get install --no-install-recommends -y \
-    build-essential \
-    libpq-dev \
-    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
-    && rm -rf /var/lib/apt/lists/*
-
-# 复制项目代码
-COPY . ${APP_HOME}
-
+# 一并执行安装依赖(由于使用了 build-essential 等，编译 C 依赖要在同一层完成再 purge)
 # 使用 uv sync 安装依赖（利用 cache mount 加速）
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+    apt-get update && apt-get install --no-install-recommends -y \
+    build-essential \
+    libpq-dev \
+    && uv sync --frozen --no-install-project --no-dev \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
+    && rm -rf /var/lib/apt/lists/*
+
 
 
 # ============ 阶段 2: Python Runtime Stage ============
