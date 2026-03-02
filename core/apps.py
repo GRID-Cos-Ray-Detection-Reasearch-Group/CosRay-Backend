@@ -16,26 +16,27 @@ def auto_create_test_user(sender: Any, **kwargs: Any) -> None:
 
     user_model = get_user_model()
 
-    test_username = "test"
+    test_usernames = ["test", "test1", "test2", "test3", "test4", "test5"]
     test_password = "LocalPass123!"
-    test_email = "test@example.com"
 
-    user, created = user_model.objects.get_or_create(
-        username=test_username,
-        defaults={
-            "email": test_email,
-            "is_staff": True,
-            "is_superuser": True,
-            "is_active": True,
-        },
-    )
+    for test_username in test_usernames:
+        test_email = f"{test_username}@example.com"
+        user, created = user_model.objects.get_or_create(
+            username=test_username,
+            defaults={
+                "email": test_email,
+                "is_staff": True,
+                "is_superuser": True,
+                "is_active": True,
+            },
+        )
 
-    # 始终重置密码，防止密码哈希改变或被手动修改后导致 App 端用预设密码登录失败
-    user.set_password(test_password)
-    user.save(update_fields=["password"])
+        # 始终重置密码，防止密码哈希改变或被手动修改后导致 App 端用预设密码登录失败
+        user.set_password(test_password)
+        user.save(update_fields=["password"])
 
-    action = "Created" if created else "Updated password for"
-    print(f"[{sender.name}] {action} local dev test user: {test_username}")
+        action = "Created" if created else "Updated password for"
+        print(f"[{sender.name}] {action} local dev test user: {test_username}")
 
 
 class CoreConfig(AppConfig):

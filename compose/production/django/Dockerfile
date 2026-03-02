@@ -35,7 +35,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && rm -rf /var/lib/apt/lists/*
 
-
+# 复制应用代码
+COPY . ${APP_HOME}
 
 # ============ 阶段 2: Python Runtime Stage ============
 FROM python:3.13-slim-bookworm AS python-run-stage
