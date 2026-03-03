@@ -29,3 +29,28 @@ class AuthEndpointTest(TestCase):
         self.assertEqual(refresh_response.status_code, 200)
         refresh_payload = refresh_response.json()
         self.assertIn("access", refresh_payload)
+
+    def test_register_endpoint_create_user_and_return_tokens(self) -> None:
+        response = self.client.post(
+            "/api/auth/register",
+            data={"username": "new_user", "email": "new_user@example.com", "password": "Pass1234!"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIn("access", payload)
+        self.assertIn("refresh", payload)
+        self.assertIn("user", payload)
+        self.assertEqual(payload["user"]["username"], "new_user")
+        self.assertEqual(payload["user"]["email"], "new_user@example.com")
+        self.assertTrue(User.objects.filter(username="new_user").exists())
+
+    def test_register_endpoint_with_duplicate_username_return_409(self) -> None:
+        response = self.client.post(
+            "/api/auth/register",
+            data={"username": self.username, "email": "duplicate@example.com", "password": "Pass1234!"},
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)

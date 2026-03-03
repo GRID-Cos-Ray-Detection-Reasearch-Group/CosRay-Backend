@@ -5,6 +5,7 @@ Django Ninja API 路由
 import logging
 from datetime import UTC
 from datetime import datetime
+from typing import cast
 from uuid import uuid4
 
 from django.contrib.auth.models import User
@@ -13,6 +14,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
+from ninja_jwt.tokens import RefreshToken
 
 from .models import Detector
 from .schemas import CurrentUserOut
@@ -22,6 +24,8 @@ from .schemas import DetectorUpdate
 from .schemas import ErrorResponse
 from .schemas import PacketUpload
 from .schemas import PacketUploadResponse
+from .schemas import RegisterResponse
+from .schemas import UserRegisterSchema
 from .services import ingest_muon_packet
 from .services import ingest_timeline_packet
 from .validators import normalize_mac_or_error
@@ -37,6 +41,36 @@ router = Router(auth=JWTAuth())
 def health_check(request: HttpRequest) -> dict[str, str]:
     """容器与负载均衡健康检查端点"""
     return {"status": "ok"}
+
+
+@router.post("/auth/register", response=RegisterResponse, auth=None, tags=["Auth"])
+def register_user(request: HttpRequest, payload: UserRegisterSchema) -> RegisterResponse:
+    """用户注册并返回 JWT"""
+    username = payload.username.strip()
+    email = payload.email.strip().lower()
+    password = payload.password
+
+    if not username or not email or not password:
+        raise HttpError(400, "用户名、邮箱和密码不能为空")
+
+    if User.objects.filter(username=username).exists():
+        raise HttpError(409, "用户名已存在")
+
+    if User.objects.filter(email=email).exists():
+        raise HttpError(409, "邮箱已存在")
+
+    user = User.objects.create_user(
+        username=username,
+        email=email,
+        password=password,
+    )
+    refresh = cast("RefreshToken", RefreshToken.for_user(user))
+
+    return RegisterResponse(
+        access=str(refresh.access_token),
+        refresh=str(refresh),
+        user=CurrentUserOut(id=user.id, username=user.username, email=user.email),
+    )
 
 
 def resolve_request_id(request: HttpRequest) -> str:

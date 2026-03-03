@@ -162,9 +162,25 @@ class ErrorResponse(Schema):
 # ============================================================================
 
 
+class UserRegisterSchema(Schema):
+    """用户注册请求"""
+
+    username: str
+    email: str
+    password: str
+
+
 class CurrentUserOut(Schema):
     """当前用户信息输出模型"""
 
     id: int
     username: str
     email: str
+
+
+class RegisterResponse(Schema):
+    """注册成功并返回Token"""
+
+    access: str
+    refresh: str
+    user: CurrentUserOut
