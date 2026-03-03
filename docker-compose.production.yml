@@ -7,6 +7,7 @@ volumes:
   production_redis_data: {}
   production_django_media: {}
   production_django_static: {}
+  production_traefik: {}
 
 services:
   django:
@@ -87,6 +88,20 @@ services:
       timeout: 5s
       retries: 5
 
+  traefik:
+    build:
+      context: .
+      dockerfile: ./compose/production/traefik/Dockerfile
+    image: cosray_backend_production_traefik
+    container_name: cosray_backend_production_traefik
+    depends_on:
+      - django
+    volumes:
+      - production_traefik:/etc/traefik/acme
+    ports:
+      - "8080:80"
+      - "8443:443"
+
   nginx:
     build:
       context: .
@@ -99,15 +114,12 @@ services:
     volumes:
       - production_django_media:/usr/share/nginx/media:ro
       - production_django_static:/usr/share/nginx/static:ro
-    ports:
-      - "8080:80"
     healthcheck:
       test:
-        ["CMD-SHELL", "wget -q --spider http://localhost:80/static/ || exit 1"]
+        ["CMD-SHELL", "wget -q --spider http://127.0.0.1/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-
   # 监控服务
   # dozzle:
   #   image: amir20/dozzle:latest
