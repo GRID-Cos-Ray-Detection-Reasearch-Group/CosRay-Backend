@@ -109,8 +109,11 @@ services:
     image: cosray_backend_production_nginx
     container_name: cosray_backend_production_nginx
     restart: unless-stopped
+    environment:
+      NGINX_ENTRYPOINT_LOCAL_RESOLVERS: "1"
     depends_on:
-      - django
+      django:
+        condition: service_healthy
     volumes:
       - production_django_media:/usr/share/nginx/media:ro
       - production_django_static:/usr/share/nginx/static:ro

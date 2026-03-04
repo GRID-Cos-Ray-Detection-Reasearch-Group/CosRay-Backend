@@ -10,7 +10,7 @@
 
 1. 启动生产编排容器（推荐作为性能基线）
 2. 已创建可登录用户（JWT）
-3. 后端 API 可通过 Nginx 访问（默认 `http://localhost:8080/api`）
+3. 后端 API 可通过 Traefik 访问（默认 `http://localhost:8080/api`）
 
 ## 2. 脚本位置
 
@@ -47,7 +47,28 @@ uv run python scripts/perf/run_pressure_test.py \
 - `--postgres-container` / `--iotdb-container`：数据库容器名
 - `--sample-interval`：内存采样间隔（秒）
 
-## 6. 口径说明
+## 6. 生成折线图（PNG）
+
+压测完成后，可基于 JSON 报告生成折线图：
+
+```bash
+uv run python scripts/perf/plot_pressure_report.py \
+  --input reports/perf/report.json \
+  --out-dir reports/perf/plots
+```
+
+默认产物：
+
+- `reports/perf/plots/throughput.png`：阶段吞吐量（req/s）
+- `reports/perf/plots/latency.png`：阶段延迟（avg/p95）
+- `reports/perf/plots/error_rate.png`：阶段错误率（%）
+- `reports/perf/plots/memory.png`：容器内存（MiB）
+- `reports/perf/plots/per_event_storage.png`：每 event 存储成本（bytes/event）
+- `reports/perf/plots/summary.json`：图表元数据与摘要
+
+支持一次输入多个报告文件，输出目录会按报告文件名分子目录存放。
+
+## 7. 口径说明
 
 1. 每条数据按 event 计数（来源为接口响应 `records_written`）。
 2. PostgreSQL 提供多口径：
@@ -57,9 +78,9 @@ uv run python scripts/perf/run_pressure_test.py \
 3. IoTDB 默认使用数据目录差分近似值：`(测试后 - 测试前) / event 数`。
 4. IoTDB 单条精确字节值受压缩与 compaction 影响，难以稳定精确测量，报告会保留该说明。
 
-## 7. 建议执行流程
+## 8. 建议执行流程
 
 1. 清理历史数据或记录初始快照
 2. 运行脚本完成 30 分钟标准基线
 3. 固定同一环境重复 3 轮，比较方差
-4. 基于 JSON 报告生成趋势图（吞吐、内存、每 event 成本）
+4. 基于 JSON 报告生成趋势图（吞吐、延迟、错误率、内存、每 event 成本）

@@ -14,14 +14,20 @@ python /app/manage.py collectstatic --noinput --clear
 
 # 使用 Gunicorn + Uvicorn Worker 启动
 >&2 echo "Starting Gunicorn with Uvicorn workers..."
+
+GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+GUNICORN_MAX_REQUESTS=${GUNICORN_MAX_REQUESTS:-10000}
+GUNICORN_MAX_REQUESTS_JITTER=${GUNICORN_MAX_REQUESTS_JITTER:-200}
+GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-30}
+
 exec gunicorn config.asgi:application \
     --bind 0.0.0.0:5000 \
     --chdir=/app \
-    --workers 4 \
+    --workers "${GUNICORN_WORKERS}" \
     --worker-class uvicorn.workers.UvicornWorker \
-    --max-requests 1000 \
-    --max-requests-jitter 50 \
-    --timeout 30 \
+    --max-requests "${GUNICORN_MAX_REQUESTS}" \
+    --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER}" \
+    --timeout "${GUNICORN_TIMEOUT}" \
     --access-logfile - \
     --error-logfile - \
     --log-level info

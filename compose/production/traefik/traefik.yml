@@ -5,11 +5,6 @@ entryPoints:
   web:
     # http
     address: ":80"
-    http:
-      # https://doc.traefik.io/traefik/routing/entrypoints/#entrypoint
-      redirections:
-        entryPoint:
-          to: web-secure
 
   web-secure:
     # https
@@ -27,26 +22,39 @@ certificatesResolvers:
 
 http:
   routers:
+    web-router:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - web
+      middlewares:
+        - csrf
+      service: django
+
+    web-media-router:
+      rule: "PathPrefix(`/media/`) || PathPrefix(`/static/`)"
+      entryPoints:
+        - web
+      middlewares:
+        - csrf
+      service: django-media
+
     web-secure-router:
-      rule: "Host(`example.com`) || Host(`www.example.com`)"
+      rule: "PathPrefix(`/`)"
       entryPoints:
         - web-secure
       middlewares:
         - csrf
       service: django
-      tls:
-        # https://doc.traefik.io/traefik/routing/routers/#certresolver
-        certResolver: letsencrypt
+      tls: {}
 
-    web-media-router:
-      rule: "(Host(`example.com`) || Host(`www.example.com`)) && (PathPrefix(`/media/`) || PathPrefix(`/static/`))"
+    web-secure-media-router:
+      rule: "PathPrefix(`/media/`) || PathPrefix(`/static/`)"
       entryPoints:
         - web-secure
       middlewares:
         - csrf
       service: django-media
-      tls:
-        certResolver: letsencrypt
+      tls: {}
 
   middlewares:
     csrf:

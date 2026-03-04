@@ -100,6 +100,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--postgres-db", default="cosray", help="PostgreSQL 数据库名")
     parser.add_argument("--output", default="reports/perf/report.json", help="压测结果 JSON 输出路径")
     parser.add_argument("--verbose", action="store_true", help="输出详细日志")
+    parser.add_argument(
+        "--strict-no-errors",
+        dest="strict_no_errors",
+        action="store_true",
+        default=True,
+        help="严格模式: 压测阶段出现非 200 请求即终止并报错 (默认开启)",
+    )
+    parser.add_argument(
+        "--allow-errors",
+        dest="strict_no_errors",
+        action="store_false",
+        help="允许压测阶段存在非 200 请求, 继续完成全部阶段",
+    )
     args = parser.parse_args()
 
     if not 0.0 <= args.timeline_ratio <= 1.0:
@@ -382,9 +395,29 @@ class ApiClient:
             payload={"mac_address": normalized, "name": device_name, "description": "压力测试设备"},
             timeout=self.timeout_seconds,
         )
+        if create_status == 201:
+            return
+        if create_status == 400:
+            code = create_body.get("code") if isinstance(create_body, dict) else None
+            if code == "DEVICE_EXISTS":
+                msg = (
+                    f"设备 MAC 已存在但不属于当前用户: {normalized}。"
+                    "请更换 --device-mac 或使用该设备所属账号进行压测。"
+                )
+                raise RuntimeError(msg)
+            return
         if create_status not in {201, 400}:
             msg = f"创建设备失败 status={create_status} body={create_body}"
             raise RuntimeError(msg)
+
+    def preflight_upload(self, payload: dict[str, Any]) -> None:
+        status, body = self.upload_packet(payload)
+        if status != 200:
+            msg = f"上传预检失败 status={status} body={body}"
+            raise RuntimeError(msg)
+        if not isinstance(body, dict):
+            msg = f"上传预检返回格式异常: {body}"
+            raise TypeError(msg)
 
     def upload_packet(self, payload: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
         if not self.token:
@@ -553,16 +586,19 @@ def build_payload(mac_address: str, package_counter: int, timeline_ratio: float,
     return build_muon_payload(mac_address=mac_address, package_counter=package_counter, rng=rng)
 
 
-def run_stage(
+def run_stage(  # noqa: C901, PLR0915
     api_client: ApiClient,
     stage: StageConfig,
     stage_name: str,
     runtime_config: StageRuntimeConfig,
+    *,
+    strict_no_errors: bool,
 ) -> StageResult:
     start_monotonic = time.monotonic()
     stage_deadline = start_monotonic + stage.duration_seconds
     accumulator = StageAccumulator()
     counter_lock = threading.Lock()
+    abort_event = threading.Event()
     package_counter = 0
 
     def next_package_counter() -> int:
@@ -573,7 +609,7 @@ def run_stage(
 
     def worker(worker_id: int) -> None:
         local_rng = random.Random(runtime_config.seed + worker_id)  # noqa: S311
-        while time.monotonic() < stage_deadline:
+        while time.monotonic() < stage_deadline and not abort_event.is_set():
             package_id = next_package_counter()
             payload = build_payload(
                 mac_address=runtime_config.mac_address,
@@ -591,12 +627,18 @@ def run_stage(
                     if isinstance(raw_records, int):
                         records_written = raw_records
                 accumulator.record(status_code=status_code, latency_ms=latency_ms, records_written=records_written)
+                if strict_no_errors and status_code != 200:
+                    abort_event.set()
             except TimeoutError:
                 latency_ms = (time.perf_counter() - request_start) * 1000
                 accumulator.record_exception("timeout", latency_ms)
+                if strict_no_errors:
+                    abort_event.set()
             except error.URLError:
                 latency_ms = (time.perf_counter() - request_start) * 1000
                 accumulator.record_exception("network_error", latency_ms)
+                if strict_no_errors:
+                    abort_event.set()
 
     workers: list[threading.Thread] = []
     for worker_id in range(stage.concurrency):
@@ -612,7 +654,7 @@ def run_stage(
     request_failed = accumulator.request_failed
     latency_values = accumulator.latency_ms
 
-    return StageResult(
+    stage_result = StageResult(
         stage_name=stage_name,
         concurrency=stage.concurrency,
         duration_seconds=stage.duration_seconds,
@@ -629,6 +671,10 @@ def run_stage(
         latency_ms_p99=quantile(latency_values, 0.99),
         status_code_counts=dict(accumulator.status_code_counts),
     )
+    if strict_no_errors and stage_result.request_failed > 0:
+        msg = f"阶段 {stage_name} 出现非 200 请求, 已终止。status_counts={stage_result.status_code_counts}"
+        raise RuntimeError(msg)
+    return stage_result
 
 
 def compute_delta(after: int | None, before: int | None) -> int | None:
@@ -661,6 +707,15 @@ def main() -> None:
     if not args.skip_device_bootstrap:
         logger.info("检查或创建设备 mac=%s", mac_address)
         api_client.ensure_device(mac_address=mac_address, device_name=args.device_name)
+    logger.info("执行上传接口预检")
+    preflight_rng = random.Random(args.seed)  # noqa: S311
+    preflight_payload = build_payload(
+        mac_address=mac_address,
+        package_counter=1,
+        timeline_ratio=args.timeline_ratio,
+        rng=preflight_rng,
+    )
+    api_client.preflight_upload(preflight_payload)
 
     logger.info("采集测试前数据库快照")
     postgres_before = capture_postgres_snapshot(args)
@@ -684,6 +739,7 @@ def main() -> None:
                 timeline_ratio=args.timeline_ratio,
                 seed=args.seed + index * 10000,
             ),
+            strict_no_errors=args.strict_no_errors,
         )
         stage_results.append(stage_result)
         logger.info(
