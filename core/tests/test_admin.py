@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.auth.models import Permission
 from django.contrib.auth.models import User
 from django.http import HttpRequest
@@ -45,6 +46,11 @@ class DetectorAdminPermissionTest(TestCase):
         request.user = user
         return request
 
+    def _anonymous_request(self) -> HttpRequest:
+        request = self.factory.get("/admin/core/detector/")
+        request.user = AnonymousUser()
+        return request
+
     def test_staff_queryset_only_contains_owned_detectors(self) -> None:
         request = self._request(self.other_staff)
 
@@ -62,6 +68,13 @@ class DetectorAdminPermissionTest(TestCase):
             [self.owned_detector, self.foreign_detector],
             transform=lambda obj: obj,
         )
+
+    def test_anonymous_queryset_is_empty(self) -> None:
+        request = self._anonymous_request()
+
+        queryset = self.admin.get_queryset(request)
+
+        self.assertFalse(queryset.exists())
 
     def test_staff_cannot_view_change_or_delete_foreign_detector(self) -> None:
         request = self._request(self.other_staff)
@@ -98,3 +111,17 @@ class DetectorAdminPermissionTest(TestCase):
         exclude = self.admin.get_exclude(request)
 
         self.assertIsNone(exclude)
+
+    def test_staff_has_list_view_permission_without_object(self) -> None:
+        request = self._request(self.other_staff)
+
+        self.assertTrue(self.admin.has_view_permission(request, None))
+        self.assertTrue(self.admin.has_change_permission(request, None))
+        self.assertTrue(self.admin.has_delete_permission(request, None))
+
+    def test_anonymous_user_has_no_object_permissions(self) -> None:
+        request = self._anonymous_request()
+
+        self.assertFalse(self.admin.has_view_permission(request, self.owned_detector))
+        self.assertFalse(self.admin.has_change_permission(request, self.owned_detector))
+        self.assertFalse(self.admin.has_delete_permission(request, self.owned_detector))

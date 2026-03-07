@@ -14,7 +14,7 @@
 ## 📋 前置要求
 
 - Python 3.13+
-- uv (推荐) 或 pip
+- uv
 - Docker & Docker Compose (用于数据库)
 
 ## 🚀 快速开始
@@ -32,13 +32,15 @@ cp .env.example .env
 # 根据需要编辑 .env 文件
 ```
 
+`.env` 仅用于本地开发，默认应保持未跟踪状态。
+
 ### 3. 启动数据库服务
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-等待 PostgreSQL 和 IoTDB 启动（约 10 秒）。
+等待 PostgreSQL 和 IoTDB 启动（约 10 秒）。本地未配置 Redis 时，限流与 Refresh Token 失效控制会回退到进程内缓存。
 
 ### 4. 数据库迁移
 
@@ -125,6 +127,10 @@ uv run python manage.py migrate
 - 压测与资源开销测量说明见 `docs/performance-testing.md`
 - 执行脚本：`scripts/perf/run_pressure_test.py`
 
+## 部署检查
+
+- 生产部署前请先核对 `docs/deployment-checklist.md`
+
 ## 📦 数据模型
 
 ### Detector (探测器设备)
@@ -175,6 +181,11 @@ curl -X GET http://localhost:8000/api/devices/ \
 - Password: root
 
 可通过 `.env` 文件修改。
+
+## 🧠 缓存配置
+
+- `REDIS_URL` 已配置时，Django 使用 Redis 作为限流和 Refresh Token 失效控制的共享缓存
+- `REDIS_URL` 留空时，Django 回退到进程内缓存，仅适合本地开发或单进程环境
 
 ## 🐳 Docker 服务
 

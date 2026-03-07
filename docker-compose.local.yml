@@ -2,6 +2,7 @@ volumes:
   local_postgres_data: {}
   local_postgres_data_backups: {}
   local_iotdb_data: {}
+  local_redis_data: {}
 
 services:
   django:
@@ -14,6 +15,8 @@ services:
       postgres:
         condition: service_healthy
       iotdb:
+        condition: service_started
+      redis:
         condition: service_started
     volumes:
       # 保留虚拟环境在容器内，避免本地和容器冲突
@@ -66,3 +69,24 @@ services:
       - dn_internal_address=127.0.0.1
     volumes:
       - local_iotdb_data:/iotdb/data
+
+  redis:
+    image: redis:8-alpine
+    container_name: cosray_backend_local_redis
+    restart: unless-stopped
+    env_file:
+      - .envs/.local/.redis
+    command: sh -c 'redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"'
+    ports:
+      - "6379:6379"
+    volumes:
+      - local_redis_data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'redis-cli -a "$${REDIS_PASSWORD}" ping | grep PONG || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5

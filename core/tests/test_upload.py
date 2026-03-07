@@ -18,6 +18,7 @@ from core.schemas import MuonPacket
 from core.schemas import PacketUpload
 from core.schemas import TimelineEvent
 from core.schemas import TimelinePacket
+from core.services import IoTDBWriteError
 
 
 class UploadValidationTest(TestCase):
@@ -189,7 +190,7 @@ class UploadValidationTest(TestCase):
         self.assertEqual(status_code, 400)
         self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
 
-    @patch("core.api.ingest_muon_packet", side_effect=RuntimeError("iotdb failed"))
+    @patch("core.api.ingest_muon_packet", side_effect=IoTDBWriteError("iotdb failed"))
     def test_upload_packet_iotdb_error_returns_400(self, mock_ingest: MagicMock) -> None:
         request = self._request_with_user(self.user)
         payload = PacketUpload(

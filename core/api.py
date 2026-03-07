@@ -37,6 +37,7 @@ from .security import check_rate_limit
 from .security import get_client_ip
 from .security import refresh_token_is_revoked
 from .security import revoke_refresh_token
+from .services import IoTDBWriteError
 from .services import ingest_muon_packet
 from .services import ingest_timeline_packet
 from .validators import normalize_mac_or_error
@@ -189,6 +190,24 @@ def get_owned_detector_or_error(user: User, mac_address: str) -> tuple[Detector 
     return detector, None
 
 
+def ingest_packet_for_detector(
+    payload: PacketUpload,
+    detector_mac_address: str,
+) -> tuple[int | None, ErrorResponse | None]:
+    """根据 packet_type 写入对应数据包。"""
+    if payload.packet_type == "muon":
+        if payload.muon_packet is None:
+            return None, ErrorResponse(detail="packet_type 为 muon 时必须提供 muon_packet", code="INVALID_PACKET")
+        return ingest_muon_packet(detector_mac_address, payload.muon_packet), None
+
+    if payload.timeline_packet is None:
+        return None, ErrorResponse(
+            detail="packet_type 为 timeline 时必须提供 timeline_packet",
+            code="INVALID_PACKET",
+        )
+    return ingest_timeline_packet(detector_mac_address, payload.timeline_packet), None
+
+
 @router.get("/users/me", response=CurrentUserOut, tags=["Users"])
 def get_current_user(request: HttpRequest) -> CurrentUserOut:
     """获取当前登录用户信息"""
@@ -233,7 +252,9 @@ def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, D
             ),
         )
         return 400, mac_error
-    assert normalized_mac is not None, "normalized_mac should not be None"
+    if normalized_mac is None:
+        logger.error("create_device_missing_normalized_mac request_id=%s", request_id)
+        return 400, ErrorResponse(detail="MAC 地址格式必须为 AA:BB:CC:DD:EE:FF", code="INVALID_MAC_ADDRESS")
 
     # 检查 MAC 地址是否已存在
     if Detector.objects.filter(mac_address=normalized_mac).exists():
@@ -374,7 +395,9 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
             ),
         )
         return 400, mac_error
-    assert normalized_mac is not None, "normalized_mac should not be None"
+    if normalized_mac is None:
+        logger.error("upload_packet_missing_normalized_mac request_id=%s", request_id)
+        return 400, ErrorResponse(detail="MAC 地址格式必须为 AA:BB:CC:DD:EE:FF", code="INVALID_MAC_ADDRESS")
 
     user = resolve_authenticated_user(request)
     detector, detector_error = get_owned_detector_or_error(user, normalized_mac)
@@ -389,7 +412,20 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
             ),
         )
         return 404, detector_error
-    assert detector is not None, "detector should not be None"
+    if detector is None:
+        logger.error(
+            "upload_packet_missing_detector %s",
+            format_log_context(
+                request_id=request_id,
+                user_id=user.id,
+                mac_address=normalized_mac,
+                error_code="DEVICE_NOT_FOUND",
+            ),
+        )
+        return 404, ErrorResponse(
+            detail=f"设备 {normalized_mac} 不存在或不属于当前用户",
+            code="DEVICE_NOT_FOUND",
+        )
 
     rate_limit_error = check_rate_limit(
         scope="upload",
@@ -416,12 +452,11 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
 
     # 写入 IoTDB
     try:
-        if payload.packet_type == "muon":
-            assert payload.muon_packet is not None, "muon_packet is required"
-            records_written = ingest_muon_packet(detector.mac_address, payload.muon_packet)
-        else:  # timeline
-            assert payload.timeline_packet is not None, "timeline_packet is required"
-            records_written = ingest_timeline_packet(detector.mac_address, payload.timeline_packet)
+        records_written, packet_error = ingest_packet_for_detector(payload, detector.mac_address)
+        if packet_error is not None:
+            return 400, packet_error
+        if records_written is None:
+            return 400, ErrorResponse(detail="数据包内容无效", code="INVALID_PACKET")
 
         # 更新设备最后上报时间
         detector.last_seen_at = datetime.now(UTC)
@@ -446,7 +481,7 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
             message=f"成功写入 {records_written} 条记录",
         )
 
-    except Exception:
+    except IoTDBWriteError:
         logger.exception(
             "upload_packet_iotdb_error %s",
             format_log_context(

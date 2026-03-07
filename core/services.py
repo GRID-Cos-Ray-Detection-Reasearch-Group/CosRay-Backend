@@ -21,6 +21,10 @@ from .schemas import TimelinePacket
 logger = logging.getLogger(__name__)
 
 
+class IoTDBWriteError(RuntimeError):
+    """IoTDB 写入失败时抛出的显式异常。"""
+
+
 # ============================================================================
 # 连接池管理
 # ============================================================================
@@ -118,9 +122,10 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
         logger.info("Muon packet from %s written: %d records", device_mac, len(timestamps))
         return len(timestamps)
 
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to write Muon packet from %s", device_mac)
-        raise
+        error_message = f"Muon packet write failed for {device_mac}"
+        raise IoTDBWriteError(error_message) from exc
 
     finally:
         pool.put_back(session)
@@ -225,9 +230,10 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
         )
         return len(timestamps)
 
-    except Exception:
+    except Exception as exc:
         logger.exception("Failed to write Timeline packet from %s", device_mac)
-        raise
+        error_message = f"Timeline packet write failed for {device_mac}"
+        raise IoTDBWriteError(error_message) from exc
 
     finally:
         pool.put_back(session)

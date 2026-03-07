@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,6 +29,7 @@ SECRET_KEY = env("SECRET_KEY", default="!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 IS_TESTING = "pytest" in sys.argv
+REDIS_URL = env("REDIS_URL", default="")
 
 
 # Application definition
@@ -163,9 +165,27 @@ IOTDB_PORT = env.int("IOTDB_PORT", default=6667)
 IOTDB_USER = env("IOTDB_USER", default="root")
 IOTDB_PASSWORD = env("IOTDB_PASSWORD", default="root")
 
+# 缓存配置
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+        }
+    }
+else:
+    if not DEBUG and not IS_TESTING:
+        raise ImproperlyConfigured("生产环境必须配置 REDIS_URL, 禁止回退到进程内缓存")
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "cosray-backend-cache",
+        }
+    }
+
 # JWT 配置
 NINJA_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=30)),
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=env.int("JWT_ACCESS_TOKEN_LIFETIME_HOURS", default=24)),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=3)),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,

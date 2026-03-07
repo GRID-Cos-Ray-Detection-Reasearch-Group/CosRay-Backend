@@ -25,7 +25,7 @@ ESP32固件 (BLE) → Android App (HTTP API) → Django Backend → PostgreSQL +
 
 - **语言**: Python 3.13 (强制使用新式类型注解: `list[str]`, `str | None`)
 - **Web 框架**: Django 6+, Django Ninja (API), Uvicorn (ASGI 服务器)
-- **数据库**: PostgreSQL 17 (元数据/业务), Apache IoTDB 2.0.6+ (时序数据)
+- **数据库**: PostgreSQL 18 (元数据/业务), Apache IoTDB 2.0.6+ (时序数据)
 - **鉴权**: Django Ninja JWT (标准 Bearer Token，替代旧 `X-Session-Token`)
 - **后台**: Django Unfold (现代化 Admin UI，必须在 `django.contrib.admin` **之前**注册)
 - **工具链**: `uv` (包管理), `ruff` (lint/format), `pytest` (测试)
@@ -204,8 +204,8 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 
 ## 参考文档
 
-- **实施蓝图**: [docs/plan.md](docs/plan.md) - 完整的 API 契约和数据流设计
-- **编码规范**: [AGENT.md](AGENT.md) - 开发标准、工作流和质量要求
+- **实施蓝图**: [docs/plan.md](../docs/plan.md) - 完整的 API 契约和数据流设计
+- **编码规范**: [AGENT.md](../AGENT.md) - 开发标准、工作流和质量要求
 - **避坑参考**: `../CosRay-Backend-Archive` - 旧后端的技术债务与经验教训 (仅供避坑，**不要照搬实现**)
 
 ---
