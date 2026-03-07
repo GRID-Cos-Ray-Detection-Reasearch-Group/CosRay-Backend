@@ -170,6 +170,33 @@ class UserRegisterSchema(Schema):
     password: str
 
 
+class TokenPairIn(Schema):
+    """登录请求"""
+
+    username: str
+    password: str
+
+
+class TokenPairOut(Schema):
+    """登录成功返回 Token 对"""
+
+    access: str
+    refresh: str
+
+
+class TokenRefreshIn(Schema):
+    """刷新 Token 请求"""
+
+    refresh: str
+
+
+class TokenRefreshOut(Schema):
+    """刷新 Token 响应"""
+
+    access: str
+    refresh: str
+
+
 class CurrentUserOut(Schema):
     """当前用户信息输出模型"""
 

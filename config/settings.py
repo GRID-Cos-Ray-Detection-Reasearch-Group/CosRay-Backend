@@ -4,6 +4,7 @@ Django settings for CosRay-Backend.
 使用 django-environ 管理环境变量配置。
 """
 
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -26,6 +27,7 @@ if env_file.exists():
 SECRET_KEY = env("SECRET_KEY", default="!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
+IS_TESTING = "pytest" in sys.argv
 
 
 # Application definition
@@ -137,6 +139,23 @@ STORAGES = {
 CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
 CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+
+# 生产安全配置
+USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=not DEBUG and not IS_TESTING)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG and not IS_TESTING)
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG and not IS_TESTING)
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG and not IS_TESTING)
+SECURE_HSTS_SECONDS = env.int("SECURE_HSTS_SECONDS", default=31536000 if not DEBUG and not IS_TESTING else 0)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
+    "SECURE_HSTS_INCLUDE_SUBDOMAINS",
+    default=not DEBUG and not IS_TESTING,
+)
+SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG and not IS_TESTING)
+SECURE_CONTENT_TYPE_NOSNIFF = env.bool("SECURE_CONTENT_TYPE_NOSNIFF", default=True)
+SECURE_REFERRER_POLICY = env("SECURE_REFERRER_POLICY", default="same-origin")
+X_FRAME_OPTIONS = env("X_FRAME_OPTIONS", default="DENY")
 
 # IoTDB 配置
 IOTDB_HOST = env("IOTDB_HOST", default="localhost")
@@ -146,11 +165,11 @@ IOTDB_PASSWORD = env("IOTDB_PASSWORD", default="root")
 
 # JWT 配置
 NINJA_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(hours=env.int("JWT_ACCESS_TOKEN_LIFETIME_HOURS", default=24)),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7)),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=30)),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=3)),
     "ROTATE_REFRESH_TOKENS": True,
-    "BLACKLIST_AFTER_ROTATION": False,
-    "UPDATE_LAST_LOGIN": True,
+    "BLACKLIST_AFTER_ROTATION": True,
+    "UPDATE_LAST_LOGIN": False,
     "ALGORITHM": "HS256",
     "SIGNING_KEY": SECRET_KEY,
     "AUTH_HEADER_TYPES": ("Bearer",),
@@ -158,6 +177,15 @@ NINJA_JWT = {
     "USER_ID_FIELD": "id",
     "USER_ID_CLAIM": "user_id",
 }
+
+# 安全限流配置
+RATE_LIMIT_CACHE_PREFIX = env("RATE_LIMIT_CACHE_PREFIX", default="ratelimit")
+LOGIN_RATE_LIMIT_COUNT = env.int("LOGIN_RATE_LIMIT_COUNT", default=5)
+LOGIN_RATE_LIMIT_WINDOW_SECONDS = env.int("LOGIN_RATE_LIMIT_WINDOW_SECONDS", default=300)
+REGISTER_RATE_LIMIT_COUNT = env.int("REGISTER_RATE_LIMIT_COUNT", default=3)
+REGISTER_RATE_LIMIT_WINDOW_SECONDS = env.int("REGISTER_RATE_LIMIT_WINDOW_SECONDS", default=3600)
+UPLOAD_RATE_LIMIT_COUNT = env.int("UPLOAD_RATE_LIMIT_COUNT", default=120)
+UPLOAD_RATE_LIMIT_WINDOW_SECONDS = env.int("UPLOAD_RATE_LIMIT_WINDOW_SECONDS", default=60)
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

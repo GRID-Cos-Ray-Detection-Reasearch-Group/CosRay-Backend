@@ -5,7 +5,6 @@ URL configuration for CosRay-Backend
 from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
-from ninja_jwt.routers.obtain import obtain_pair_router
 from ninja_jwt.routers.verify import verify_router
 
 from core.api import router as core_router
@@ -18,7 +17,6 @@ api = NinjaAPI(
 )
 
 # 注册 JWT 路由
-api.add_router("/token/", tags=["Authentication"], router=obtain_pair_router)
 api.add_router("/token/", tags=["Authentication"], router=verify_router)
 
 # 注册核心业务路由

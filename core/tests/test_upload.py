@@ -3,9 +3,11 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.http import HttpRequest
 from django.test import Client
 from django.test import TestCase
+from django.test import override_settings
 
 from core.api import create_device
 from core.api import upload_packet
@@ -20,6 +22,7 @@ from core.schemas import TimelinePacket
 
 class UploadValidationTest(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.user = User.objects.create_user(username="u1", password="pass1234")
         self.other_user = User.objects.create_user(username="u2", password="pass1234")
         self.detector = Detector.objects.create(
@@ -52,7 +55,7 @@ class UploadValidationTest(TestCase):
         )
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "DEVICE_EXISTS")
+        self.assertEqual(getattr(response, "code", None), "DEVICE_REGISTRATION_UNAVAILABLE")
 
     def test_upload_packet_non_owned_device_returns_404(self) -> None:
         request = self._request_with_user(self.other_user)
@@ -228,6 +231,7 @@ class UploadValidationTest(TestCase):
 
 class UploadHttpIntegrationTest(TestCase):
     def setUp(self) -> None:
+        cache.clear()
         self.client = Client()
         self.username = "http_upload_user"
         self.password = "Pass1234!"
@@ -296,3 +300,58 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(response_payload["device_name"], "TimelineDevice")
         self.assertEqual(response_payload["packet_type"], "timeline")
         mock_ingest.assert_called_once()
+
+    @override_settings(UPLOAD_RATE_LIMIT_COUNT=1, UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60)
+    @patch("core.api.ingest_timeline_packet", return_value=1)
+    def test_upload_rate_limit_returns_429(self, mock_ingest: MagicMock) -> None:
+        Detector.objects.create(
+            mac_address="33:44:55:66:77:88",
+            name="RateLimitedDevice",
+            owner=self.user,
+            description="",
+        )
+
+        payload = {
+            "device": "33:44:55:66:77:88",
+            "packet_type": "timeline",
+            "timeline_packet": {
+                "package_counter": 1,
+                "events": [
+                    {
+                        "cpu_time": 1,
+                        "pps": 1,
+                        "utc": 1,
+                        "pps_utc": 1,
+                        "cputime_pps": 1,
+                        "gps_long": 0,
+                        "gps_lat": 0,
+                        "gps_alt": 0,
+                        "acc_x": 0,
+                        "acc_y": 0,
+                        "acc_z": 0,
+                        "sipm_tmp": 1,
+                        "mcu_tmp": 1,
+                        "sipm_imon": 1,
+                        "sipm_vmon": 1,
+                    }
+                ],
+            },
+        }
+
+        first_response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            **self._auth_header(),
+        )
+        second_response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            **self._auth_header(),
+        )
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertEqual(second_response.status_code, 429)
+        self.assertEqual(second_response.json()["code"], "RATE_LIMIT_EXCEEDED")
+        self.assertEqual(mock_ingest.call_count, 1)

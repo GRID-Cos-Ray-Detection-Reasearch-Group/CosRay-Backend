@@ -8,12 +8,15 @@ from datetime import datetime
 from typing import cast
 from uuid import uuid4
 
+from django.conf import settings
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
+from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import RefreshToken
 
 from .models import Detector
@@ -25,7 +28,15 @@ from .schemas import ErrorResponse
 from .schemas import PacketUpload
 from .schemas import PacketUploadResponse
 from .schemas import RegisterResponse
+from .schemas import TokenPairIn
+from .schemas import TokenPairOut
+from .schemas import TokenRefreshIn
+from .schemas import TokenRefreshOut
 from .schemas import UserRegisterSchema
+from .security import check_rate_limit
+from .security import get_client_ip
+from .security import refresh_token_is_revoked
+from .security import revoke_refresh_token
 from .services import ingest_muon_packet
 from .services import ingest_timeline_packet
 from .validators import normalize_mac_or_error
@@ -46,6 +57,15 @@ def health_check(request: HttpRequest) -> dict[str, str]:
 @router.post("/auth/register", response=RegisterResponse, auth=None, tags=["Auth"])
 def register_user(request: HttpRequest, payload: UserRegisterSchema) -> RegisterResponse:
     """用户注册并返回 JWT"""
+    rate_limit_error = check_rate_limit(
+        scope="register",
+        identifier=get_client_ip(request),
+        limit=settings.REGISTER_RATE_LIMIT_COUNT,
+        window_seconds=settings.REGISTER_RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if rate_limit_error is not None:
+        raise HttpError(429, rate_limit_error.detail)
+
     username = payload.username.strip()
     email = payload.email.strip().lower()
     password = payload.password
@@ -53,24 +73,81 @@ def register_user(request: HttpRequest, payload: UserRegisterSchema) -> Register
     if not username or not email or not password:
         raise HttpError(400, "用户名、邮箱和密码不能为空")
 
-    if User.objects.filter(username=username).exists():
-        raise HttpError(409, "用户名已存在")
-
-    if User.objects.filter(email=email).exists():
-        raise HttpError(409, "邮箱已存在")
+    if User.objects.filter(username=username).exists() or User.objects.filter(email=email).exists():
+        raise HttpError(409, "注册信息不可用")
 
     user = User.objects.create_user(
         username=username,
         email=email,
         password=password,
     )
-    refresh = cast("RefreshToken", RefreshToken.for_user(user))
+    access_token, refresh_token = build_token_pair(user)
 
     return RegisterResponse(
-        access=str(refresh.access_token),
-        refresh=str(refresh),
+        access=access_token,
+        refresh=refresh_token,
         user=CurrentUserOut(id=user.id, username=user.username, email=user.email),
     )
+
+
+@router.post(
+    "/token/pair",
+    response={200: TokenPairOut, 401: ErrorResponse, 429: ErrorResponse},
+    auth=None,
+    tags=["Auth"],
+)
+def obtain_token_pair(request: HttpRequest, payload: TokenPairIn) -> TokenPairOut | tuple[int, ErrorResponse]:
+    """登录并签发 access/refresh token。"""
+    username = payload.username.strip()
+    rate_limit_error = check_rate_limit(
+        scope="login",
+        identifier=f"{get_client_ip(request)}:{username.lower()}",
+        limit=settings.LOGIN_RATE_LIMIT_COUNT,
+        window_seconds=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if rate_limit_error is not None:
+        return 429, rate_limit_error
+
+    user = authenticate(request, username=username, password=payload.password)
+    if not isinstance(user, User) or not user.is_active:
+        return 401, ErrorResponse(detail="用户名或密码错误", code="INVALID_CREDENTIALS")
+
+    access_token, refresh_token = build_token_pair(user)
+    return TokenPairOut(access=access_token, refresh=refresh_token)
+
+
+@router.post(
+    "/token/refresh",
+    response={200: TokenRefreshOut, 401: ErrorResponse},
+    auth=None,
+    tags=["Auth"],
+)
+def refresh_token(request: HttpRequest, payload: TokenRefreshIn) -> TokenRefreshOut | tuple[int, ErrorResponse]:
+    """刷新 access token，并使旧 refresh token 失效。"""
+    del request
+    try:
+        refresh = RefreshToken(payload.refresh)
+        refresh.verify()  # type: ignore[no-untyped-call]
+    except TokenError:
+        return 401, ErrorResponse(detail="Refresh Token 无效", code="INVALID_TOKEN")
+
+    if refresh_token_is_revoked(refresh):
+        return 401, ErrorResponse(detail="Refresh Token 无效", code="INVALID_TOKEN")
+
+    user_id = refresh.get(settings.NINJA_JWT["USER_ID_CLAIM"])
+    if not isinstance(user_id, int):
+        return 401, ErrorResponse(detail="Refresh Token 无效", code="INVALID_TOKEN")
+
+    try:
+        user = User.objects.get(id=user_id, is_active=True)
+    except User.DoesNotExist:
+        return 401, ErrorResponse(detail="Refresh Token 无效", code="INVALID_TOKEN")
+
+    if settings.NINJA_JWT.get("BLACKLIST_AFTER_ROTATION", False):
+        revoke_refresh_token(refresh)
+
+    access_token, refresh_token_value = build_token_pair(user)
+    return TokenRefreshOut(access=access_token, refresh=refresh_token_value)
 
 
 def resolve_request_id(request: HttpRequest) -> str:
@@ -84,6 +161,12 @@ def resolve_request_id(request: HttpRequest) -> str:
 def format_log_context(**kwargs: str | int) -> str:
     """格式化结构化日志上下文"""
     return " ".join(f"{key}={value}" for key, value in kwargs.items())
+
+
+def build_token_pair(user: User) -> tuple[str, str]:
+    """为用户签发新的 access/refresh token。"""
+    refresh = cast("RefreshToken", RefreshToken.for_user(user))
+    return str(refresh.access_token), str(refresh)
 
 
 def resolve_authenticated_user(request: HttpRequest) -> User:
@@ -161,12 +244,12 @@ def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, D
                 request_id=request_id,
                 user_id=user.id,
                 mac_address=normalized_mac,
-                error_code="DEVICE_EXISTS",
+                error_code="DEVICE_REGISTRATION_UNAVAILABLE",
             ),
         )
         return 400, ErrorResponse(
-            detail=f"设备 {normalized_mac} 已存在",
-            code="DEVICE_EXISTS",
+            detail="设备无法注册",
+            code="DEVICE_REGISTRATION_UNAVAILABLE",
         )
 
     # 创建设备
@@ -268,7 +351,7 @@ def delete_device(request: HttpRequest, device_id: int) -> tuple[int, None]:
 
 @router.post(
     "/mu-packets/",
-    response={200: PacketUploadResponse, 400: ErrorResponse, 404: ErrorResponse},
+    response={200: PacketUploadResponse, 400: ErrorResponse, 404: ErrorResponse, 429: ErrorResponse},
     tags=["Data Packets"],
 )
 def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadResponse | tuple[int, ErrorResponse]:
@@ -307,6 +390,15 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
         )
         return 404, detector_error
     assert detector is not None, "detector should not be None"
+
+    rate_limit_error = check_rate_limit(
+        scope="upload",
+        identifier=f"{user.id}:{detector.mac_address}",
+        limit=settings.UPLOAD_RATE_LIMIT_COUNT,
+        window_seconds=settings.UPLOAD_RATE_LIMIT_WINDOW_SECONDS,
+    )
+    if rate_limit_error is not None:
+        return 429, rate_limit_error
 
     payload_error = validate_packet_payload(payload)
     if payload_error is not None:
