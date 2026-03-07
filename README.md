@@ -178,7 +178,7 @@ curl -X GET http://localhost:8000/api/devices/ \
 
 ## 🐳 Docker 服务
 
-### PostgreSQL 17
+### PostgreSQL 18
 
 - Port: 5432
 - Database: cosray
