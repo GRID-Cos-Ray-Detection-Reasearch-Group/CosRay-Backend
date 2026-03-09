@@ -83,8 +83,8 @@
 
 ## 附加端点与配置
 
-- `/health`：容器与负载均衡的健康检查端点，返回 `{"status":"ok"}`，用于 k8s/反向代理探活。
-- `/token/verify`：由 `ninja_jwt` 提供的内置 verify 路由，可用于校验 access token 的合法性（通常用于调试或短期集中校验）。
+- `/api/health`：容器与负载均衡的健康检查端点，返回 `{"status":"ok"}`，用于 k8s/反向代理探活。
+- `/api/token/verify`：由 `ninja_jwt` 提供的内置 verify 路由，可用于校验 access token 的合法性（通常用于调试或短期集中校验）。
 
 速率限制配置位于应用配置中（`config/settings.py`），常用配置项：
 
