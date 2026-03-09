@@ -4,6 +4,7 @@ Django settings for CosRay-Backend.
 使用 django-environ 管理环境变量配置。
 """
 
+import os
 import sys
 from datetime import timedelta
 from pathlib import Path
@@ -29,6 +30,9 @@ SECRET_KEY = env("SECRET_KEY", default="!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
 DEBUG = env.bool("DEBUG", default=False)
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
 IS_TESTING = "pytest" in sys.argv
+# pre-commit 和 pre-commit.ci 在运行时会设置 PRE_COMMIT_HOME 环境变量
+# 当在 pre-commit 或 mypy 插件上下文中导入 Django settings 时，允许回退到本地缓存以避免配置阻断静态检查
+IS_PRE_COMMIT = bool(os.environ.get("PRE_COMMIT_HOME") or os.environ.get("PRE_COMMIT"))
 REDIS_URL = env("REDIS_URL", default="")
 
 
@@ -174,7 +178,8 @@ if REDIS_URL:
         }
     }
 else:
-    if not DEBUG and not IS_TESTING:
+    # 在非 DEBUG 且非测试且非 pre-commit 环境下强制要求 Redis
+    if not DEBUG and not IS_TESTING and not IS_PRE_COMMIT:
         raise ImproperlyConfigured("生产环境必须配置 REDIS_URL, 禁止回退到进程内缓存")
     CACHES = {
         "default": {
