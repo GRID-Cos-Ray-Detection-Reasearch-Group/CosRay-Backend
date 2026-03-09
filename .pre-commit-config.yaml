@@ -44,6 +44,8 @@ repos:
     hooks:
       - id: mypy
         args: ["--strict"]
+        env:
+          REDIS_URL: "redis://127.0.0.1:6379/0"
         additional_dependencies:
           - django-stubs
           - django>=6.0.1
