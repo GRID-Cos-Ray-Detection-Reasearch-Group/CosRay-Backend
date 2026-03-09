@@ -124,12 +124,18 @@ uv run python manage.py migrate
 
 ## 性能测试
 
-- 压测与资源开销测量说明见 `docs/performance-testing.md`
+- 压测与资源开销测量说明见 `docs/ops/performance-testing.md`
 - 执行脚本：`scripts/perf/run_pressure_test.py`
 
 ## 部署检查
 
-- 生产部署前请先核对 `docs/deployment-checklist.md`
+- 生产部署前请先核对 `docs/ops/deployment-checklist.md`
+
+## 文档站点
+
+- 文档站点基于 VitePress，源文件位于 `docs/`
+- 本地预览：`cd docs && pnpm install --frozen-lockfile && pnpm dev`
+- 生产发布目标：GitHub Pages
 
 ## 📦 数据模型
 

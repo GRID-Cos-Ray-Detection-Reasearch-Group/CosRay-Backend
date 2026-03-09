@@ -363,7 +363,7 @@ class IoTDBWriteError(Exception):
 | CosRay-Detector-Firmware | `../CosRay-Detector-Firmware` | ESP32 固件，数据包格式来源   |
 | CosRay-Backend-Archive   | `../CosRay-Backend-Archive`   | 旧后端实现，参考代码来源     |
 
-详细实施计划参见 `docs/plan.md`。
+文档与对接说明请优先查阅 `docs/` 下的 VitePress 主题页面，尤其是 `docs/getting-started.md`、`docs/integration/protocol-contracts.md` 和 `docs/ops/deployment.md`。
 
 ---
 

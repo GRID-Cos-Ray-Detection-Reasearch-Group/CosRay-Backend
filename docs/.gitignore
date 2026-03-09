@@ -1,0 +1,42 @@
+# ----------------------------------------------------------------------
+# Python
+# ----------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+# venv
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# test
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# ----------------------------------------------------------------------
+# Node.js, pnpm & VitePress
+# ----------------------------------------------------------------------
+node_modules/
+pnpm-debug.log*
+npm-debug.log*
+
+# VitePress
+.vitepress/cache/
+.vitepress/dist/
+
+*~
+*.save
+*.save.*
+
+# KDE
+.directory
+
+# macOS
+.DS_Store
+Thumbs.db
