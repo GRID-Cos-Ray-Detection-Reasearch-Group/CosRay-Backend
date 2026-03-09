@@ -63,7 +63,11 @@ CosRay-Backend/
 └── docker-compose.yml   # PostgreSQL + IoTDB 服务编排
 ```
 
-**注意**: 当前 `core/` 为空模板，所有业务代码待实现。遵循 `AGENT.md` 和 `docs/plan.md` 的详细规范。
+**当前状态更新**:
+
+- `core/` 已完成主要业务实现，包含认证、设备管理、数据包上传、IoTDB 写入和后台管理。
+- 文档站点已迁移到 `docs/` 下的 VitePress 结构，优先查阅按主题拆分后的页面，而不是历史规划文档。
+- 旧的计划型/设计型大文档不再作为主入口，涉及行为判断时以当前代码和测试为准。
 
 ## 数据模型设计
 
@@ -107,11 +111,12 @@ def get_iotdb_session():
 
 ## API 契约 (与 CosRay-App 对接)
 
-必须严格遵守 App 端的数据结构 (参见 `docs/plan.md` 第 2.3 节):
+必须严格遵守 App 端的数据结构与当前站点中的协议说明文档:
 
 **关键端点**:
 
-- `POST /api/auth/login`: JWT 登录 (返回 `access_token` / `refresh_token`)
+- `POST /api/token/pair`: JWT 登录 (返回 `access` / `refresh`)
+- `POST /api/auth/register`: 用户注册并返回 JWT
 - `GET /api/users/me`: 获取当前用户信息
 - `GET/POST /api/devices/`: 设备列表/注册
 - `POST /api/mu-packets/`: 上传 Muon/Timeline 数据包
@@ -204,7 +209,9 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000
 
 ## 参考文档
 
-- **实施蓝图**: [docs/plan.md](../docs/plan.md) - 完整的 API 契约和数据流设计
+- **文档站点入口**: [docs/index.md](../docs/index.md) - 当前文档首页
+- **快速开始**: [docs/getting-started.md](../docs/getting-started.md) - 本地开发与文档使用
+- **协议对接**: [docs/integration/protocol-contracts.md](../docs/integration/protocol-contracts.md) - App / Firmware / Backend 对接约束
 - **编码规范**: [AGENT.md](../AGENT.md) - 开发标准、工作流和质量要求
 - **避坑参考**: `../CosRay-Backend-Archive` - 旧后端的技术债务与经验教训 (仅供避坑，**不要照搬实现**)
 
