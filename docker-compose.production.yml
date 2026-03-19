@@ -54,7 +54,7 @@ services:
       retries: 5
 
   iotdb:
-    image: apache/iotdb:2.0.6-standalone
+    image: apache/iotdb:2.0.7-standalone
     container_name: cosray_backend_production_iotdb
     restart: unless-stopped
     environment:
