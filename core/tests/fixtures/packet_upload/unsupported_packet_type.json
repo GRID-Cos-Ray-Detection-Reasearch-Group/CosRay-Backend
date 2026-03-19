@@ -1,0 +1,13 @@
+{
+  "name": "unsupported_packet_type",
+  "as_user": "owner",
+  "patch": null,
+  "request": {
+    "device": "AA:BB:CC:DD:EE:FF",
+    "packet_type": "bad-type"
+  },
+  "expected": {
+    "status_code": 400,
+    "code": "INVALID_PACKET_TYPE"
+  }
+}

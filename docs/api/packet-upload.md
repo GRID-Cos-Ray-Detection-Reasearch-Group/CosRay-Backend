@@ -59,7 +59,8 @@ POST /api/mu-packets/
   "device_name": "实验室一号机",
   "packet_type": "muon",
   "records_written": 35,
-  "message": "上传成功"
+  "message": "成功写入 35 条记录",
+  "request_id": "<uuid-hex>"
 }
 ```
 
@@ -67,16 +68,20 @@ POST /api/mu-packets/
 
 ## 常见错误码
 
-- `INVALID_MAC_ADDRESS`
+- `INVALID_MAC`
 - `DEVICE_NOT_FOUND`
-- `INVALID_PACKET`
+- `INVALID_PACKET_TYPE`
+- `MISSING_PAYLOAD`
 - `MUON_EVENTS_OVER_LIMIT`
 - `TIMELINE_EVENTS_OVER_LIMIT`
 - `INVALID_MUON_HEAD`
 - `INVALID_MUON_TAIL`
 - `INVALID_TIMELINE_HEAD`
 - `INVALID_TIMELINE_TAIL`
+- `RATE_LIMIT_EXCEEDED`（HTTP 429）
 - `IOTDB_WRITE_ERROR`
+
+IoTDB 写入失败时返回 `IOTDB_WRITE_ERROR`，HTTP 状态码为 503。
 
 ## IoTDB 写入语义
 

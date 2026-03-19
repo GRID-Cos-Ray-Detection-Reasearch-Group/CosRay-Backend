@@ -1,0 +1,13 @@
+{
+  "name": "invalid_mac",
+  "as_user": "owner",
+  "patch": null,
+  "request": {
+    "device": "bad-mac",
+    "packet_type": "muon"
+  },
+  "expected": {
+    "status_code": 400,
+    "code": "INVALID_MAC"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "non_owned_device",
+  "as_user": "other",
+  "patch": null,
+  "request": {
+    "device": "AA:BB:CC:DD:EE:FF",
+    "packet_type": "muon",
+    "muon_packet": {
+      "package_counter": 1,
+      "utc": 1735689600,
+      "events": [{ "cpu_time": 1, "energy": 2, "pps": 3 }]
+    }
+  },
+  "expected": {
+    "status_code": 404,
+    "code": "DEVICE_NOT_FOUND"
+  }
+}
