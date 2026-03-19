@@ -46,7 +46,7 @@ class UploadValidationTest(TestCase):
         )
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC")
 
     def test_create_device_duplicate_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -99,7 +99,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "MISSING_PAYLOAD")
 
     def test_upload_packet_timeline_events_over_limit_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -179,7 +179,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "MISSING_PAYLOAD")
 
     def test_upload_packet_invalid_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -188,7 +188,19 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC")
+
+    def test_upload_packet_unsupported_packet_type_returns_400(self) -> None:
+        request = self._request_with_user(self.user)
+        payload = PacketUpload(
+            device="AA:BB:CC:DD:EE:FF",
+            packet_type="bad-type",
+        )
+
+        status_code, response = upload_packet(request, payload)
+
+        self.assertEqual(status_code, 400)
+        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET_TYPE")
 
     @patch("core.api.ingest_muon_packet", side_effect=IoTDBWriteError("iotdb failed"))
     def test_upload_packet_iotdb_error_returns_400(self, mock_ingest: MagicMock) -> None:
@@ -201,8 +213,9 @@ class UploadValidationTest(TestCase):
 
         status_code, response = upload_packet(request, payload)
 
-        self.assertEqual(status_code, 400)
+        self.assertEqual(status_code, 503)
         self.assertEqual(getattr(response, "code", None), "IOTDB_WRITE_ERROR")
+        self.assertIsInstance(getattr(response, "request_id", None), str)
         mock_ingest.assert_called_once()
 
     @patch("core.api.ingest_muon_packet", return_value=1)
@@ -245,6 +258,7 @@ class UploadHttpIntegrationTest(TestCase):
         )
         self.assertEqual(pair_response.status_code, 200)
         self.access_token = pair_response.json()["access"]
+        self.assertIn("request_id", pair_response.json())
 
     def _auth_header(self) -> dict[str, typing.Any]:
         return {"HTTP_AUTHORIZATION": f"Bearer {self.access_token}"}
@@ -300,6 +314,7 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(response_payload["device"], "22:33:44:55:66:77")
         self.assertEqual(response_payload["device_name"], "TimelineDevice")
         self.assertEqual(response_payload["packet_type"], "timeline")
+        self.assertIn("request_id", response_payload)
         mock_ingest.assert_called_once()
 
     @override_settings(UPLOAD_RATE_LIMIT_COUNT=1, UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60)

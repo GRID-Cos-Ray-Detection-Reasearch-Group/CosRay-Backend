@@ -55,6 +55,7 @@ class DevicesHttpIntegrationTest(TestCase):
         payload = response.json()
         self.assertEqual(payload["username"], self.username)
         self.assertEqual(payload["email"], "u@example.com")
+        self.assertIn("request_id", payload)
 
     def test_devices_crud_flow(self) -> None:
         create_response = self.client.post(
@@ -69,15 +70,19 @@ class DevicesHttpIntegrationTest(TestCase):
         )
         self.assertEqual(create_response.status_code, 201)
         created = create_response.json()
+        self.assertIn("request_id", created)
         device_id = created["id"]
 
         list_response = self.client.get("/api/devices/", **self._auth_header())
         self.assertEqual(list_response.status_code, 200)
-        self.assertEqual(len(list_response.json()), 1)
+        payload = list_response.json()
+        self.assertEqual(len(payload), 1)
+        self.assertIn("request_id", payload[0])
 
         detail_response = self.client.get(f"/api/devices/{device_id}/", **self._auth_header())
         self.assertEqual(detail_response.status_code, 200)
         self.assertEqual(detail_response.json()["mac_address"], "11:22:33:44:55:66")
+        self.assertIn("request_id", detail_response.json())
 
         update_response = self.client.patch(
             f"/api/devices/{device_id}/",
@@ -88,6 +93,7 @@ class DevicesHttpIntegrationTest(TestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["name"], "Detector-1-updated")
         self.assertFalse(update_response.json()["is_active"])
+        self.assertIn("request_id", update_response.json())
 
         delete_response = self.client.delete(f"/api/devices/{device_id}/", **self._auth_header())
         self.assertEqual(delete_response.status_code, 204)
@@ -104,18 +110,18 @@ class DevicesHttpIntegrationTest(TestCase):
             description="",
         )
 
-        detail_response = self.client.get(f"/api/devices/{detector.id}/", **self._other_auth_header())
+        detail_response = self.client.get(f"/api/devices/{detector.pk}/", **self._other_auth_header())
         self.assertEqual(detail_response.status_code, 404)
 
         update_response = self.client.patch(
-            f"/api/devices/{detector.id}/",
+            f"/api/devices/{detector.pk}/",
             data={"name": "Hacked"},
             content_type="application/json",
             **self._other_auth_header(),
         )
         self.assertEqual(update_response.status_code, 404)
 
-        delete_response = self.client.delete(f"/api/devices/{detector.id}/", **self._other_auth_header())
+        delete_response = self.client.delete(f"/api/devices/{detector.pk}/", **self._other_auth_header())
         self.assertEqual(delete_response.status_code, 404)
 
         detector.refresh_from_db()

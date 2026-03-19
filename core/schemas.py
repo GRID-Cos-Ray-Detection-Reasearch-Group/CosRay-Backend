@@ -4,7 +4,6 @@ Pydantic schemas for API request/response validation
 
 from datetime import datetime
 from typing import Any
-from typing import Literal
 
 from ninja import Schema
 
@@ -26,10 +25,10 @@ class DetectorOut(Schema):
     created_at: datetime
     updated_at: datetime
     last_seen_at: datetime | None
+    request_id: str
 
     @classmethod
-    def from_orm(cls, detector: Any) -> "DetectorOut":  # type: ignore[override]
-        """从 ORM 对象转换"""
+    def from_detector(cls, detector: Any, request_id: str) -> "DetectorOut":
         return DetectorOut(
             id=detector.id,
             mac_address=detector.mac_address,
@@ -41,6 +40,7 @@ class DetectorOut(Schema):
             created_at=detector.created_at,
             updated_at=detector.updated_at,
             last_seen_at=detector.last_seen_at,
+            request_id=request_id,
         )
 
 
@@ -130,7 +130,7 @@ class PacketUpload(Schema):
     """数据包上传请求"""
 
     device: str  # MAC 地址
-    packet_type: Literal["muon", "timeline"]
+    packet_type: str
     muon_packet: MuonPacket | None = None
     timeline_packet: TimelinePacket | None = None
 
@@ -143,6 +143,7 @@ class PacketUploadResponse(Schema):
     packet_type: str
     records_written: int  # 写入 IoTDB 的记录数
     message: str
+    request_id: str
 
 
 # ============================================================================
@@ -155,6 +156,7 @@ class ErrorResponse(Schema):
 
     detail: str
     code: str | None = None
+    request_id: str
 
 
 # ============================================================================
@@ -182,6 +184,7 @@ class TokenPairOut(Schema):
 
     access: str
     refresh: str
+    request_id: str
 
 
 class TokenRefreshIn(Schema):
@@ -195,6 +198,7 @@ class TokenRefreshOut(Schema):
 
     access: str
     refresh: str
+    request_id: str
 
 
 class CurrentUserOut(Schema):
@@ -203,6 +207,7 @@ class CurrentUserOut(Schema):
     id: int
     username: str
     email: str
+    request_id: str
 
 
 class RegisterResponse(Schema):
@@ -211,3 +216,4 @@ class RegisterResponse(Schema):
     access: str
     refresh: str
     user: CurrentUserOut
+    request_id: str

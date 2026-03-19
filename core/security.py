@@ -1,9 +1,8 @@
-"""安全辅助逻辑: 限流与 Refresh Token 失效控制"""
-
 from __future__ import annotations
 
 import time
 from typing import TYPE_CHECKING
+from typing import cast
 
 from django.conf import settings
 from django.core.cache import cache
@@ -11,6 +10,8 @@ from django.core.cache import cache
 from .schemas import ErrorResponse
 
 if TYPE_CHECKING:
+    from datetime import timedelta
+
     from django.http import HttpRequest
     from ninja_jwt.tokens import RefreshToken
 
@@ -36,7 +37,7 @@ def check_rate_limit(scope: str, identifier: str, limit: int, window_seconds: in
     current_count = 1 if cache.add(cache_key, 1, timeout=window_seconds + 1) else int(cache.incr(cache_key))
 
     if current_count > limit:
-        return ErrorResponse(detail="请求过于频繁, 请稍后再试", code="RATE_LIMIT_EXCEEDED")
+        return ErrorResponse(detail="请求过于频繁, 请稍后再试", code="RATE_LIMIT_EXCEEDED", request_id="")
     return None
 
 
@@ -48,6 +49,34 @@ def refresh_token_is_revoked(refresh_token: RefreshToken) -> bool:
 
     cache_key = f"{settings.RATE_LIMIT_CACHE_PREFIX}:revoked-refresh:{jti}"
     return bool(cache.get(cache_key, False))
+
+
+def revoke_user_refresh_tokens(user_id: int) -> None:
+    if user_id <= 0:
+        return
+
+    cache_key = f"{settings.RATE_LIMIT_CACHE_PREFIX}:revoked-refresh-before:{user_id}"
+    now = int(time.time())
+    refresh_token_lifetime = cast("timedelta", settings.NINJA_JWT["REFRESH_TOKEN_LIFETIME"])
+    refresh_lifetime = int(refresh_token_lifetime.total_seconds())
+    cache.set(cache_key, value=now, timeout=refresh_lifetime + 60)
+
+
+def refresh_token_revoked_by_user(refresh_token: RefreshToken) -> bool:
+    user_id_claim = cast("str", settings.NINJA_JWT["USER_ID_CLAIM"])
+    user_id = refresh_token.get(user_id_claim)
+    if not isinstance(user_id, int) or user_id <= 0:
+        return False
+
+    cache_key = f"{settings.RATE_LIMIT_CACHE_PREFIX}:revoked-refresh-before:{user_id}"
+    revoked_before = cache.get(cache_key)
+    if not isinstance(revoked_before, int) or revoked_before <= 0:
+        return False
+
+    iat = refresh_token.get("iat")
+    if not isinstance(iat, int):
+        return True
+    return iat <= revoked_before
 
 
 def revoke_refresh_token(refresh_token: RefreshToken) -> None:
