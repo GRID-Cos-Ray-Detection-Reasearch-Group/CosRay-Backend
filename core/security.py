@@ -7,13 +7,15 @@ from typing import cast
 from django.conf import settings
 from django.core.cache import cache
 
-from .schemas import ErrorResponse
+from .errors import build_error
 
 if TYPE_CHECKING:
     from datetime import timedelta
 
     from django.http import HttpRequest
     from ninja_jwt.tokens import RefreshToken
+
+    from .schemas import ErrorResponse
 
 
 def get_client_ip(request: HttpRequest) -> str:
@@ -27,7 +29,14 @@ def get_client_ip(request: HttpRequest) -> str:
     return "unknown"
 
 
-def check_rate_limit(scope: str, identifier: str, limit: int, window_seconds: int) -> ErrorResponse | None:
+def check_rate_limit(
+    *,
+    scope: str,
+    identifier: str,
+    limit: int,
+    window_seconds: int,
+    request_id: str,
+) -> ErrorResponse | None:
     """使用固定窗口计数器执行轻量限流。"""
     if limit <= 0 or window_seconds <= 0:
         return None
@@ -37,7 +46,7 @@ def check_rate_limit(scope: str, identifier: str, limit: int, window_seconds: in
     current_count = 1 if cache.add(cache_key, 1, timeout=window_seconds + 1) else int(cache.incr(cache_key))
 
     if current_count > limit:
-        return ErrorResponse(detail="请求过于频繁, 请稍后再试", code="RATE_LIMIT_EXCEEDED", request_id="")
+        return build_error(detail="请求过于频繁, 请稍后再试", code="RATE_LIMIT_EXCEEDED", request_id=request_id)
     return None
 
 

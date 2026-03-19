@@ -4,9 +4,11 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.test import TestCase
+from pydantic import ValidationError
 
 from core.api import upload_packet
 from core.models import Detector
@@ -40,7 +42,18 @@ class PacketUploadContractTest(TestCase):
                 as_user = fixture.get("as_user")
                 user = self.owner if as_user == "owner" else self.other
                 request = self._request_with_user(user)
-                payload = PacketUpload(**fixture["request"])
+
+                expected = fixture["expected"]
+                if expected.get("code") == "INVALID_PACKET_TYPE":
+                    with pytest.raises(ValidationError):
+                        PacketUpload(**fixture["request"])
+                    continue
+
+                try:
+                    payload = PacketUpload(**fixture["request"])
+                except ValidationError as exc:
+                    message = f"Invalid contract fixture request payload: {fixture_path.name}"
+                    raise AssertionError(message) from exc
 
                 patch_spec = fixture.get("patch")
                 if patch_spec is None:
@@ -64,7 +77,6 @@ class PacketUploadContractTest(TestCase):
                     status_code = 200
                     response = result
 
-                expected = fixture["expected"]
                 self.assertEqual(status_code, expected["status_code"])
                 self.assertIsInstance(getattr(response, "request_id", None), str)
                 self.assertTrue(getattr(response, "request_id", "").strip())

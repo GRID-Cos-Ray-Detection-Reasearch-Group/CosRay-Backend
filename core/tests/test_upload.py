@@ -2,12 +2,14 @@ import typing
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.http import HttpRequest
 from django.test import Client
 from django.test import TestCase
 from django.test import override_settings
+from pydantic import ValidationError
 
 from core.api import create_device
 from core.api import upload_packet
@@ -191,16 +193,12 @@ class UploadValidationTest(TestCase):
         self.assertEqual(getattr(response, "code", None), "INVALID_MAC")
 
     def test_upload_packet_unsupported_packet_type_returns_400(self) -> None:
-        request = self._request_with_user(self.user)
-        payload = PacketUpload(
-            device="AA:BB:CC:DD:EE:FF",
-            packet_type="bad-type",
-        )
-
-        status_code, response = upload_packet(request, payload)
-
-        self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET_TYPE")
+        packet_type: typing.Any = "bad-type"
+        with pytest.raises(ValidationError):
+            PacketUpload(
+                device="AA:BB:CC:DD:EE:FF",
+                packet_type=packet_type,
+            )
 
     @patch("core.api.ingest_muon_packet", side_effect=IoTDBWriteError("iotdb failed"))
     def test_upload_packet_iotdb_error_returns_400(self, mock_ingest: MagicMock) -> None:

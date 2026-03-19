@@ -10,16 +10,15 @@ from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import AbstractBaseUser
 from django.contrib.auth.models import User
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
-from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import TokenError
 from ninja_jwt.tokens import RefreshToken
 
+from .errors import build_error
 from .models import Detector
 from .schemas import CurrentUserOut
 from .schemas import DetectorCreate
@@ -72,9 +71,9 @@ def register_user(request: HttpRequest, payload: UserRegisterSchema) -> Register
         identifier=get_client_ip(request),
         limit=settings.REGISTER_RATE_LIMIT_COUNT,
         window_seconds=settings.REGISTER_RATE_LIMIT_WINDOW_SECONDS,
+        request_id=request_id,
     )
     if rate_limit_error is not None:
-        rate_limit_error.request_id = request_id
         return 429, rate_limit_error
 
     username = payload.username.strip()
@@ -117,9 +116,9 @@ def obtain_token_pair(request: HttpRequest, payload: TokenPairIn) -> TokenPairOu
         identifier=f"{get_client_ip(request)}:{username.lower()}",
         limit=settings.LOGIN_RATE_LIMIT_COUNT,
         window_seconds=settings.LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        request_id=request_id,
     )
     if rate_limit_error is not None:
-        rate_limit_error.request_id = request_id
         return 429, rate_limit_error
 
     user = authenticate(request, username=username, password=payload.password)
@@ -175,7 +174,10 @@ def refresh_token(request: HttpRequest, payload: TokenRefreshIn) -> TokenRefresh
 )
 def revoke_all_refresh_tokens(request: HttpRequest) -> tuple[int, None] | tuple[int, ErrorResponse]:
     request_id = resolve_request_id(request)
-    user = resolve_authenticated_user(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     revoke_user_refresh_tokens(int(user.pk))
     logger.info(
         "revoke_refresh_tokens_success %s",
@@ -206,25 +208,30 @@ def build_token_pair(user: User) -> tuple[str, str]:
     return str(refresh.access_token), str(refresh)
 
 
-def resolve_authenticated_user(request: HttpRequest) -> User:
-    """统一提取已认证用户，未认证则抛出 401"""
+def resolve_authenticated_user_or_error(
+    request: HttpRequest,
+    request_id: str,
+) -> tuple[User | None, ErrorResponse | None]:
+    """统一提取已认证用户，未认证则返回结构化错误。"""
     user = request.user
-    if not isinstance(user, AbstractBaseUser):
-        raise HttpError(401, "User must be authenticated")
-    if not isinstance(user, User):
-        raise HttpError(401, "User must be authenticated")
-    return user
+    if isinstance(user, User):
+        return user, None
+    return None, build_error(detail="需要认证", code="UNAUTHORIZED", request_id=request_id)
 
 
-def get_owned_detector_or_error(user: User, mac_address: str) -> tuple[Detector | None, ErrorResponse | None]:
+def get_owned_detector_or_error(
+    user: User,
+    mac_address: str,
+    request_id: str,
+) -> tuple[Detector | None, ErrorResponse | None]:
     """按 owner + MAC 获取设备"""
     try:
         detector = Detector.objects.get(mac_address=mac_address, owner=user)
     except Detector.DoesNotExist:
-        return None, ErrorResponse(
+        return None, build_error(
             detail=f"设备 {mac_address} 不存在或不属于当前用户",
             code="DEVICE_NOT_FOUND",
-            request_id="",
+            request_id=request_id,
         )
     return detector, None
 
@@ -253,11 +260,14 @@ def ingest_packet_for_detector(
     return ingest_timeline_packet(detector_mac_address, payload.timeline_packet), None
 
 
-@router.get("/users/me", response=CurrentUserOut, tags=["Users"])
-def get_current_user(request: HttpRequest) -> CurrentUserOut:
+@router.get("/users/me", response={200: CurrentUserOut, 401: ErrorResponse}, tags=["Users"])
+def get_current_user(request: HttpRequest) -> CurrentUserOut | tuple[int, ErrorResponse]:
     """获取当前登录用户信息"""
-    user = resolve_authenticated_user(request)
     request_id = resolve_request_id(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     return CurrentUserOut(id=int(user.pk), username=user.username, email=user.email, request_id=request_id)
 
 
@@ -266,26 +276,32 @@ def get_current_user(request: HttpRequest) -> CurrentUserOut:
 # ============================================================================
 
 
-@router.get("/devices/", response=list[DetectorOut], tags=["Devices"])
-def list_devices(request: HttpRequest) -> list[DetectorOut]:
+@router.get("/devices/", response={200: list[DetectorOut], 401: ErrorResponse}, tags=["Devices"])
+def list_devices(request: HttpRequest) -> list[DetectorOut] | tuple[int, ErrorResponse]:
     """获取当前用户的所有设备"""
-    user = resolve_authenticated_user(request)
     request_id = resolve_request_id(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     detectors = Detector.objects.filter(owner=user).select_related("owner")
     return [DetectorOut.from_detector(d, request_id) for d in detectors]
 
 
 @router.post(
     "/devices/",
-    response={201: DetectorOut, 400: ErrorResponse},
+    response={201: DetectorOut, 400: ErrorResponse, 401: ErrorResponse},
     tags=["Devices"],
 )
 def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, DetectorOut | ErrorResponse]:
     """注册新设备"""
     request_id = resolve_request_id(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     normalized_mac, mac_error = normalize_mac_or_error(payload.mac_address, request_id)
     if mac_error is not None:
-        user = resolve_authenticated_user(request)
         logger.warning(
             "create_device_invalid_mac %s",
             format_log_context(
@@ -306,7 +322,6 @@ def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, D
 
     # 检查 MAC 地址是否已存在
     if Detector.objects.filter(mac_address=normalized_mac).exists():
-        user = resolve_authenticated_user(request)
         logger.warning(
             "create_device_duplicate %s",
             format_log_context(
@@ -323,7 +338,6 @@ def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, D
         )
 
     # 创建设备
-    user = resolve_authenticated_user(request)
     detector = Detector.objects.create(
         mac_address=normalized_mac,
         name=payload.name,
@@ -343,28 +357,38 @@ def create_device(request: HttpRequest, payload: DetectorCreate) -> tuple[int, D
     return 201, DetectorOut.from_detector(detector, request_id)
 
 
-@router.get("/devices/{device_id}/", response=DetectorOut, tags=["Devices"])
-def get_device(request: HttpRequest, device_id: int) -> DetectorOut:
+@router.get("/devices/{device_id}/", response={200: DetectorOut, 401: ErrorResponse}, tags=["Devices"])
+def get_device(request: HttpRequest, device_id: int) -> DetectorOut | tuple[int, ErrorResponse]:
     """获取设备详情"""
-    user = resolve_authenticated_user(request)
+    request_id = resolve_request_id(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     detector = get_object_or_404(
         Detector.objects.select_related("owner"),
         id=device_id,
         owner=user,
     )
-    request_id = resolve_request_id(request)
     return DetectorOut.from_detector(detector, request_id)
 
 
 @router.patch(
     "/devices/{device_id}/",
-    response={200: DetectorOut, 404: ErrorResponse},
+    response={200: DetectorOut, 404: ErrorResponse, 401: ErrorResponse},
     tags=["Devices"],
 )
-def update_device(request: HttpRequest, device_id: int, payload: DetectorUpdate) -> DetectorOut:
+def update_device(
+    request: HttpRequest,
+    device_id: int,
+    payload: DetectorUpdate,
+) -> DetectorOut | tuple[int, ErrorResponse]:
     """更新设备信息"""
     request_id = resolve_request_id(request)
-    user = resolve_authenticated_user(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     detector = get_object_or_404(Detector, id=device_id, owner=user)
 
     # 只更新非 None 的字段
@@ -389,15 +413,88 @@ def update_device(request: HttpRequest, device_id: int, payload: DetectorUpdate)
     return DetectorOut.from_detector(detector, request_id)
 
 
+def _resolve_upload_context_or_error(
+    request: HttpRequest,
+    payload: PacketUpload,
+    request_id: str,
+) -> tuple[User | None, Detector | None, int | None, ErrorResponse | None]:
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return None, None, 401, auth_error
+    assert user is not None
+
+    normalized_mac, mac_error = normalize_mac_or_error(payload.device, request_id)
+    if mac_error is not None:
+        logger.warning(
+            "upload_packet_invalid_mac %s",
+            format_log_context(
+                request_id=request_id,
+                input_mac=payload.device,
+                error_code=mac_error.code or "UNKNOWN",
+            ),
+        )
+        return user, None, 400, mac_error
+    if normalized_mac is None:
+        logger.error("upload_packet_missing_normalized_mac request_id=%s", request_id)
+        return (
+            user,
+            None,
+            400,
+            build_error(
+                detail="MAC 地址格式必须为 AA:BB:CC:DD:EE:FF",
+                code="INVALID_MAC",
+                request_id=request_id,
+            ),
+        )
+
+    detector, detector_error = get_owned_detector_or_error(user, normalized_mac, request_id)
+    if detector_error is not None:
+        logger.warning(
+            "upload_packet_detector_not_found %s",
+            format_log_context(
+                request_id=request_id,
+                user_id=int(user.pk),
+                mac_address=normalized_mac,
+                error_code=detector_error.code or "UNKNOWN",
+            ),
+        )
+        return user, None, 404, detector_error
+    if detector is None:
+        logger.error(
+            "upload_packet_missing_detector %s",
+            format_log_context(
+                request_id=request_id,
+                user_id=int(user.pk),
+                mac_address=normalized_mac,
+                error_code="DEVICE_NOT_FOUND",
+            ),
+        )
+        return (
+            user,
+            None,
+            404,
+            build_error(
+                detail=f"设备 {normalized_mac} 不存在或不属于当前用户",
+                code="DEVICE_NOT_FOUND",
+                request_id=request_id,
+            ),
+        )
+
+    return user, detector, None, None
+
+
 @router.delete(
     "/devices/{device_id}/",
-    response={204: None, 404: ErrorResponse},
+    response={204: None, 404: ErrorResponse, 401: ErrorResponse},
     tags=["Devices"],
 )
-def delete_device(request: HttpRequest, device_id: int) -> tuple[int, None]:
+def delete_device(request: HttpRequest, device_id: int) -> tuple[int, None] | tuple[int, ErrorResponse]:
     """删除设备"""
     request_id = resolve_request_id(request)
-    user = resolve_authenticated_user(request)
+    user, auth_error = resolve_authenticated_user_or_error(request, request_id)
+    if auth_error is not None:
+        return 401, auth_error
+    assert user is not None
     detector = get_object_or_404(Detector, id=device_id, owner=user)
     mac_address = detector.mac_address
 
@@ -426,6 +523,7 @@ def delete_device(request: HttpRequest, device_id: int) -> tuple[int, None]:
         200: PacketUploadResponse,
         400: ErrorResponse,
         404: ErrorResponse,
+        401: ErrorResponse,
         429: ErrorResponse,
         503: ErrorResponse,
     },
@@ -440,63 +538,20 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
     - 更新设备最后上报时间
     """
     request_id = resolve_request_id(request)
-    normalized_mac, mac_error = normalize_mac_or_error(payload.device, request_id)
-    if mac_error is not None:
-        logger.warning(
-            "upload_packet_invalid_mac %s",
-            format_log_context(
-                request_id=request_id,
-                input_mac=payload.device,
-                error_code=mac_error.code or "UNKNOWN",
-            ),
-        )
-        return 400, mac_error
-    if normalized_mac is None:
-        logger.error("upload_packet_missing_normalized_mac request_id=%s", request_id)
-        return 400, ErrorResponse(
-            detail="MAC 地址格式必须为 AA:BB:CC:DD:EE:FF",
-            code="INVALID_MAC",
-            request_id=request_id,
-        )
-
-    user = resolve_authenticated_user(request)
-    detector, detector_error = get_owned_detector_or_error(user, normalized_mac)
-    if detector_error is not None:
-        detector_error.request_id = request_id
-        logger.warning(
-            "upload_packet_detector_not_found %s",
-            format_log_context(
-                request_id=request_id,
-                user_id=int(user.pk),
-                mac_address=normalized_mac,
-                error_code=detector_error.code or "UNKNOWN",
-            ),
-        )
-        return 404, detector_error
-    if detector is None:
-        logger.error(
-            "upload_packet_missing_detector %s",
-            format_log_context(
-                request_id=request_id,
-                user_id=int(user.pk),
-                mac_address=normalized_mac,
-                error_code="DEVICE_NOT_FOUND",
-            ),
-        )
-        return 404, ErrorResponse(
-            detail=f"设备 {normalized_mac} 不存在或不属于当前用户",
-            code="DEVICE_NOT_FOUND",
-            request_id=request_id,
-        )
+    user, detector, error_status, error = _resolve_upload_context_or_error(request, payload, request_id)
+    if error is not None:
+        return error_status or 400, error
+    assert user is not None
+    assert detector is not None
 
     rate_limit_error = check_rate_limit(
         scope="upload",
         identifier=f"{int(user.pk)}:{detector.mac_address}",
         limit=settings.UPLOAD_RATE_LIMIT_COUNT,
         window_seconds=settings.UPLOAD_RATE_LIMIT_WINDOW_SECONDS,
+        request_id=request_id,
     )
     if rate_limit_error is not None:
-        rate_limit_error.request_id = request_id
         return 429, rate_limit_error
 
     payload_error = validate_packet_payload(payload, request_id)
@@ -517,7 +572,6 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
     try:
         records_written, packet_error = ingest_packet_for_detector(payload, detector.mac_address, request_id)
         if packet_error is not None:
-            packet_error.request_id = request_id
             return 400, packet_error
         if records_written is None:
             return 400, ErrorResponse(detail="数据包内容无效", code="INVALID_PACKET", request_id=request_id)

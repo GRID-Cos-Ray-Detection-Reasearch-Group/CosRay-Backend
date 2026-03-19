@@ -44,9 +44,13 @@ class DevicesHttpIntegrationTest(TestCase):
     def test_protected_endpoints_require_authentication(self) -> None:
         users_me_response = self.client.get("/api/users/me")
         self.assertEqual(users_me_response.status_code, 401)
+        self.assertEqual(users_me_response.json()["code"], "UNAUTHORIZED")
+        self.assertTrue(users_me_response.json()["request_id"].strip())
 
         devices_response = self.client.get("/api/devices/")
         self.assertEqual(devices_response.status_code, 401)
+        self.assertEqual(devices_response.json()["code"], "UNAUTHORIZED")
+        self.assertTrue(devices_response.json()["request_id"].strip())
 
     def test_users_me_returns_authenticated_user(self) -> None:
         response = self.client.get("/api/users/me", **self._auth_header())

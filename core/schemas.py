@@ -4,6 +4,7 @@ Pydantic schemas for API request/response validation
 
 from datetime import datetime
 from typing import Any
+from typing import Literal
 
 from ninja import Schema
 
@@ -130,7 +131,7 @@ class PacketUpload(Schema):
     """数据包上传请求"""
 
     device: str  # MAC 地址
-    packet_type: str
+    packet_type: Literal["muon", "timeline"]
     muon_packet: MuonPacket | None = None
     timeline_packet: TimelinePacket | None = None
 
