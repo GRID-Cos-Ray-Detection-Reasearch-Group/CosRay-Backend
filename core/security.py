@@ -10,8 +10,6 @@ from django.core.cache import cache
 from .schemas import ErrorResponse
 
 if TYPE_CHECKING:
-    from datetime import timedelta
-
     from django.http import HttpRequest
     from ninja_jwt.tokens import RefreshToken
 
