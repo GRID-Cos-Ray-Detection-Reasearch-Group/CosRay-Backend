@@ -26,6 +26,7 @@ jobs:
     env:
       IMAGE_NAME: ghcr.io/grid-cos-ray-detection-reasearch-group/cosray-backend-django
       IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
+      IMAGE_ARCHIVE_NAME: cosray-backend-django-image.tar.gz
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v6
@@ -47,6 +48,7 @@ jobs:
         with:
           context: .
           file: ./compose/production/django/Dockerfile
+          load: true
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
@@ -54,30 +56,68 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Deploy on Server
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Export Django Image Archive
+        run: docker save "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" | gzip > "${{ runner.temp }}/${{ env.IMAGE_ARCHIVE_NAME }}"
+
+      - name: Copy Django Image Archive to Server
+        uses: appleboy/scp-action@v0.1.7
         env:
-          IMAGE_NAME: ${{ env.IMAGE_NAME }}
-          IMAGE_TAG: ${{ env.IMAGE_TAG }}
           SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: 22
-          envs: IMAGE_NAME,IMAGE_TAG,SERVER_APP_DIR,GHCR_USERNAME,GHCR_TOKEN
+          source: ${{ runner.temp }}/${{ env.IMAGE_ARCHIVE_NAME }}
+          target: ${{ secrets.SERVER_APP_DIR }}/.deploy-artifacts
+
+      - name: Deploy on Server
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+          IMAGE_ARCHIVE_NAME: ${{ env.IMAGE_ARCHIVE_NAME }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          envs: IMAGE_NAME,IMAGE_TAG,IMAGE_ARCHIVE_NAME,SERVER_APP_DIR
           script_stop: true
           script: |
             set -euo pipefail
 
+            log() {
+              printf '[deploy] %s\n' "$1"
+            }
+
+            cleanup() {
+              rm -f ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" ".deploy-artifacts/django-image.tar"
+            }
+
+            print_diagnostics() {
+              log "部署失败，输出最近的容器状态"
+              docker compose -f docker-compose.production.yml ps || true
+              log "输出 django 最近日志"
+              docker compose -f docker-compose.production.yml logs --tail=200 django || true
+            }
+
+            trap cleanup EXIT
+            trap print_diagnostics ERR
+
             cd "${SERVER_APP_DIR}"
 
             export DJANGO_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-
-            printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USERNAME}" --password-stdin
-
-            docker compose -f docker-compose.production.yml pull django
+            log "准备部署目录"
+            mkdir -p .deploy-artifacts
+            log "解压镜像归档"
+            gzip -dc ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" > ".deploy-artifacts/django-image.tar"
+            log "导入 Django 镜像"
+            docker load --input ".deploy-artifacts/django-image.tar"
+            log "启动编排服务"
             docker compose -f docker-compose.production.yml up -d --remove-orphans
+            log "执行健康检查"
             docker compose -f docker-compose.production.yml exec -T django curl -f http://127.0.0.1:5000/api/health
+            log "清理悬空镜像"
+            docker image prune -f
