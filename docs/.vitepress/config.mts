@@ -6,6 +6,7 @@ export default defineConfig({
   description: "CosRay 后端、跨端协议与部署维护文档",
   base: "/CosRay-Backend/",
   lastUpdated: true,
+  head: [["meta", { name: "theme-color", content: "#2563eb" }]],
   themeConfig: {
     nav: [
       { text: "概览", link: "/" },
@@ -52,7 +53,8 @@ export default defineConfig({
       provider: "local",
     },
     footer: {
-      message: "文档站点基于 VitePress 构建，源代码与契约说明保存在仓库中。",
+      message:
+        "文档站点基于 VitePress 构建，当前实现与跨端契约说明均以仓库内容为准。",
       copyright: "GRID CosRay Backend",
     },
   },

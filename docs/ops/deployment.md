@@ -4,7 +4,7 @@
 
 文档站点默认部署到 GitHub Pages，而不是挂载到 Django 生产容器中。
 
-这样做的原因：
+这样做的原因如下：
 
 - VitePress 输出是纯静态资源，适合独立发布
 - 不增加后端生产容器复杂度
@@ -12,7 +12,7 @@
 
 ## 当前方案
 
-仓库中提供独立 GitHub Actions workflow，用于：
+仓库中提供独立 GitHub Actions workflow，用于完成以下步骤：
 
 1. 安装 Node.js 与 pnpm
 2. 在 `docs/` 下执行 `pnpm install --frozen-lockfile`
@@ -27,7 +27,7 @@
 base: "/CosRay-Backend/";
 ```
 
-如果未来改为自定义域名或组织级 Pages，需要同步调整 `base`。
+如果未来改为自定义域名或组织级 Pages，需要同步调整 `base` 配置。
 
 ## 启用步骤
 
@@ -45,7 +45,7 @@ base: "/CosRay-Backend/";
 
 ## 本地验证
 
-发布前建议先本地执行：
+发布前建议先在本地执行：
 
 ```bash
 cd docs

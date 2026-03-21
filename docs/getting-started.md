@@ -1,6 +1,6 @@
 # 快速开始
 
-本文档面向两类维护者：
+本文档主要面向两类维护者：
 
 - 后端开发者：需要理解 API、模型、上传行为与运维约束。
 - 跨端联调人员：需要确认 Firmware、App、Backend 三端协议是否一致。
@@ -9,10 +9,10 @@
 
 当前工作区包含四个直接相关仓库：
 
-- `CosRay-Backend`：Django Ninja 后端与本 VitePress 文档站点
+- `CosRay-Backend`：Django Ninja 后端与当前 VitePress 文档站点
 - `CosRay-App`：Android 客户端，负责 BLE 解析与 HTTP 上传
 - `CosRay-Detector-Firmware`：ESP32 固件，负责采集、组包与 BLE 发送
-- `CosRay-Backend-Archive`：旧后端归档，仅用于避坑参考，不作为实现来源
+- `CosRay-Backend-Archive`：旧后端归档，仅供避坑参考，不作为实现来源
 
 ## 启动后端
 
@@ -37,7 +37,7 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-默认开发地址为 `http://localhost:5173`。
+文档站点默认开发地址为 `http://localhost:5173`。
 
 ## 推荐阅读顺序
 
