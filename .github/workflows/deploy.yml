@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: deploy
     env:
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/cosray-backend-django
+      IMAGE_NAME: ghcr.io/grid-cos-ray-detection-reasearch-group/cosray-backend-django
       IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - name: Checkout Code Repository
