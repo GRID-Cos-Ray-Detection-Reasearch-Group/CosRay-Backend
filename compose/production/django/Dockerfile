@@ -18,11 +18,10 @@ WORKDIR ${APP_HOME}
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=0 \
-    UV_INDEX_URL=http://mirrors.cloud.aliyuncs.com/pypi/simple/
-#阿里云内网镜像源
+    UV_INDEX_URL=https://pypi.org/simple
 
-# 配置 Debian TUNA 源（加速 apt）
-RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
+# # 配置 Debian TUNA 源（加速 apt）
+# RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
 # 一并执行安装依赖(由于使用了 build-essential 等，编译 C 依赖要在同一层完成再 purge)
 # 使用 uv sync 安装依赖（利用 cache mount 加速）
@@ -59,8 +58,8 @@ ENV PYTHONUNBUFFERED=1 \
     PATH="${APP_HOME}/.venv/bin:$PATH" \
     DJANGO_SETTINGS_MODULE=config.settings
 
-# 配置 Debian TUNA 源（加速 apt）
-RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
+# # 配置 Debian TUNA 源（加速 apt）
+# RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
 
 # 创建 Django 用户
 RUN addgroup --system django && \
