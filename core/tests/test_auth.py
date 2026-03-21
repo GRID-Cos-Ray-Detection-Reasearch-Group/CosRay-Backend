@@ -59,6 +59,30 @@ class AuthEndpointTest(TestCase):
         self.assertEqual(second_refresh.status_code, 401)
         self.assertEqual(second_refresh.json()["code"], "INVALID_TOKEN")
 
+    def test_revoke_all_refresh_tokens_invalidates_existing_refresh(self) -> None:
+        pair_response = self.client.post(
+            "/api/token/pair",
+            data={"username": self.username, "password": self.password},
+            content_type="application/json",
+        )
+        self.assertEqual(pair_response.status_code, 200)
+        refresh_token = pair_response.json()["refresh"]
+
+        revoke_response = self.client.post(
+            "/api/token/revoke-all",
+            content_type="application/json",
+            HTTP_AUTHORIZATION=f"Bearer {pair_response.json()['access']}",
+        )
+        self.assertEqual(revoke_response.status_code, 204)
+
+        refresh_response = self.client.post(
+            "/api/token/refresh",
+            data={"refresh": refresh_token},
+            content_type="application/json",
+        )
+        self.assertEqual(refresh_response.status_code, 401)
+        self.assertEqual(refresh_response.json()["code"], "INVALID_TOKEN")
+
     def test_register_endpoint_create_user_and_return_tokens(self) -> None:
         response = self.client.post(
             "/api/auth/register",
@@ -95,6 +119,7 @@ class AuthEndpointTest(TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json()["detail"], "用户名或密码错误")
         self.assertEqual(response.json()["code"], "INVALID_CREDENTIALS")
+        self.assertIn("request_id", response.json())
 
     @override_settings(LOGIN_RATE_LIMIT_COUNT=1, LOGIN_RATE_LIMIT_WINDOW_SECONDS=60)
     def test_login_rate_limit_returns_429(self) -> None:
@@ -114,6 +139,7 @@ class AuthEndpointTest(TestCase):
         self.assertEqual(first_response.status_code, 401)
         self.assertEqual(second_response.status_code, 429)
         self.assertEqual(second_response.json()["code"], "RATE_LIMIT_EXCEEDED")
+        self.assertIn("request_id", second_response.json())
 
     @override_settings(REGISTER_RATE_LIMIT_COUNT=1, REGISTER_RATE_LIMIT_WINDOW_SECONDS=60)
     def test_register_rate_limit_returns_429(self) -> None:

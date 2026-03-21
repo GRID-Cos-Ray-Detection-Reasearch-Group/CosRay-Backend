@@ -2,12 +2,14 @@ import typing
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.http import HttpRequest
 from django.test import Client
 from django.test import TestCase
 from django.test import override_settings
+from pydantic import ValidationError
 
 from core.api import create_device
 from core.api import upload_packet
@@ -46,7 +48,7 @@ class UploadValidationTest(TestCase):
         )
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC")
 
     def test_create_device_duplicate_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -99,7 +101,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "MISSING_PAYLOAD")
 
     def test_upload_packet_timeline_events_over_limit_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -179,7 +181,7 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_PACKET")
+        self.assertEqual(getattr(response, "code", None), "MISSING_PAYLOAD")
 
     def test_upload_packet_invalid_mac_returns_400(self) -> None:
         request = self._request_with_user(self.user)
@@ -188,7 +190,15 @@ class UploadValidationTest(TestCase):
         status_code, response = upload_packet(request, payload)
 
         self.assertEqual(status_code, 400)
-        self.assertEqual(getattr(response, "code", None), "INVALID_MAC_ADDRESS")
+        self.assertEqual(getattr(response, "code", None), "INVALID_MAC")
+
+    def test_upload_packet_unsupported_packet_type_returns_400(self) -> None:
+        packet_type: typing.Any = "bad-type"
+        with pytest.raises(ValidationError):
+            PacketUpload(
+                device="AA:BB:CC:DD:EE:FF",
+                packet_type=packet_type,
+            )
 
     @patch("core.api.ingest_muon_packet", side_effect=IoTDBWriteError("iotdb failed"))
     def test_upload_packet_iotdb_error_returns_400(self, mock_ingest: MagicMock) -> None:
@@ -201,8 +211,9 @@ class UploadValidationTest(TestCase):
 
         status_code, response = upload_packet(request, payload)
 
-        self.assertEqual(status_code, 400)
+        self.assertEqual(status_code, 503)
         self.assertEqual(getattr(response, "code", None), "IOTDB_WRITE_ERROR")
+        self.assertIsInstance(getattr(response, "request_id", None), str)
         mock_ingest.assert_called_once()
 
     @patch("core.api.ingest_muon_packet", return_value=1)
@@ -245,6 +256,7 @@ class UploadHttpIntegrationTest(TestCase):
         )
         self.assertEqual(pair_response.status_code, 200)
         self.access_token = pair_response.json()["access"]
+        self.assertIn("request_id", pair_response.json())
 
     def _auth_header(self) -> dict[str, typing.Any]:
         return {"HTTP_AUTHORIZATION": f"Bearer {self.access_token}"}
@@ -300,6 +312,57 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(response_payload["device"], "22:33:44:55:66:77")
         self.assertEqual(response_payload["device_name"], "TimelineDevice")
         self.assertEqual(response_payload["packet_type"], "timeline")
+        self.assertIn("request_id", response_payload)
+        mock_ingest.assert_called_once()
+
+    @patch("core.api.ingest_timeline_packet", return_value=1)
+    def test_upload_timeline_request_id_is_echoed_when_provided(self, mock_ingest: MagicMock) -> None:
+        Detector.objects.create(
+            mac_address="44:55:66:77:88:99",
+            name="RequestIdDevice",
+            owner=self.user,
+            description="",
+        )
+
+        request_id = "client-request-id-0001"
+        payload = {
+            "device": "44:55:66:77:88:99",
+            "packet_type": "timeline",
+            "timeline_packet": {
+                "package_counter": 1,
+                "events": [
+                    {
+                        "cpu_time": 1,
+                        "pps": 1,
+                        "utc": 1,
+                        "pps_utc": 1,
+                        "cputime_pps": 1,
+                        "gps_long": 0,
+                        "gps_lat": 0,
+                        "gps_alt": 0,
+                        "acc_x": 0,
+                        "acc_y": 0,
+                        "acc_z": 0,
+                        "sipm_tmp": 1,
+                        "mcu_tmp": 1,
+                        "sipm_imon": 1,
+                        "sipm_vmon": 1,
+                    }
+                ],
+            },
+        }
+
+        response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            HTTP_X_REQUEST_ID=request_id,
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["request_id"], request_id)
+        self.assertEqual(response["X-Request-Id"], request_id)
         mock_ingest.assert_called_once()
 
     @override_settings(UPLOAD_RATE_LIMIT_COUNT=1, UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60)
@@ -356,3 +419,57 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(second_response.status_code, 429)
         self.assertEqual(second_response.json()["code"], "RATE_LIMIT_EXCEEDED")
         self.assertEqual(mock_ingest.call_count, 1)
+
+    @patch("core.middleware.uuid4")
+    @patch("core.api.ingest_timeline_packet", return_value=1)
+    def test_upload_timeline_request_id_is_generated_when_missing(
+        self,
+        mock_ingest: MagicMock,
+        mock_uuid4: MagicMock,
+    ) -> None:
+        Detector.objects.create(
+            mac_address="55:66:77:88:99:AA",
+            name="GeneratedRequestIdDevice",
+            owner=self.user,
+            description="",
+        )
+
+        mock_uuid4.return_value.hex = "0123456789abcdef0123456789abcdef"
+        payload = {
+            "device": "55:66:77:88:99:AA",
+            "packet_type": "timeline",
+            "timeline_packet": {
+                "package_counter": 1,
+                "events": [
+                    {
+                        "cpu_time": 1,
+                        "pps": 1,
+                        "utc": 1,
+                        "pps_utc": 1,
+                        "cputime_pps": 1,
+                        "gps_long": 0,
+                        "gps_lat": 0,
+                        "gps_alt": 0,
+                        "acc_x": 0,
+                        "acc_y": 0,
+                        "acc_z": 0,
+                        "sipm_tmp": 1,
+                        "mcu_tmp": 1,
+                        "sipm_imon": 1,
+                        "sipm_vmon": 1,
+                    }
+                ],
+            },
+        }
+
+        response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["request_id"], "0123456789abcdef0123456789abcdef")
+        self.assertEqual(response["X-Request-Id"], "0123456789abcdef0123456789abcdef")
+        mock_ingest.assert_called_once()

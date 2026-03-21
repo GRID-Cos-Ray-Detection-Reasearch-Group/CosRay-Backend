@@ -1,0 +1,20 @@
+{
+  "name": "valid_muon_minimal",
+  "as_user": "owner",
+  "patch": { "target": "core.api.ingest_muon_packet", "return_value": 1 },
+  "request": {
+    "device": "AA:BB:CC:DD:EE:FF",
+    "packet_type": "muon",
+    "muon_packet": {
+      "package_counter": 1,
+      "utc": 1735689600,
+      "events": [{ "cpu_time": 1, "energy": 2, "pps": 3 }],
+      "head": [170, 187, 204],
+      "tail": [221, 238, 255]
+    }
+  },
+  "expected": {
+    "status_code": 200,
+    "records_written": 1
+  }
+}

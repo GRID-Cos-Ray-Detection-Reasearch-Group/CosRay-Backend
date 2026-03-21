@@ -26,14 +26,14 @@ if env_file.exists():
     environ.Env.read_env(env_file)
 
 # 核心配置
-SECRET_KEY = env("SECRET_KEY", default="!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
+SECRET_KEY = os.environ.get("SECRET_KEY", "!!!SET-SECRET-KEY-IN-PRODUCTION!!!")
 DEBUG = env.bool("DEBUG", default=False)
-ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=[])
-IS_TESTING = "pytest" in sys.argv
+ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host.strip()]
+IS_TESTING = bool(os.environ.get("PYTEST_CURRENT_TEST")) or any("pytest" in arg for arg in sys.argv)
 # pre-commit 和 pre-commit.ci 在运行时会设置 PRE_COMMIT_HOME 环境变量
 # 当在 pre-commit 或 mypy 插件上下文中导入 Django settings 时，允许回退到本地缓存以避免配置阻断静态检查
 IS_PRE_COMMIT = bool(os.environ.get("PRE_COMMIT_HOME") or os.environ.get("PRE_COMMIT"))
-REDIS_URL = env("REDIS_URL", default="")
+REDIS_URL = os.environ.get("REDIS_URL", "").strip()
 
 
 # Application definition
@@ -56,6 +56,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",  # 静态文件服务
+    "core.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",  # CORS 必须在 CommonMiddleware 之前
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -88,10 +89,22 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    # 默认值使用一个无效的 URL 以强制开发者提供配置，但在 CI 中可被覆盖
-    "default": env.db("DATABASE_URL", default="postgres://localhost/dummy"),
-}
+_test_database_url = os.environ.get("TEST_DATABASE_URL", "").strip()
+
+if IS_TESTING and not _test_database_url:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": str(BASE_DIR / ".test.db"),
+        }
+    }
+elif IS_TESTING and _test_database_url:
+    DATABASES = {"default": env.db_url_config(_test_database_url)}
+else:
+    _database_url = os.environ.get("DATABASE_URL")
+    DATABASES = {
+        "default": env.db_url_config(_database_url or "postgres://localhost/dummy"),
+    }
 
 
 # Password validation
@@ -143,9 +156,13 @@ STORAGES = {
 
 # CORS 配置
 CORS_ALLOW_ALL_ORIGINS = env.bool("CORS_ALLOW_ALL_ORIGINS", default=False)
-CORS_ALLOWED_ORIGINS = env.list("CORS_ALLOWED_ORIGINS", default=[])
+CORS_ALLOWED_ORIGINS = [
+    origin.strip() for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if origin.strip()
+]
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[])
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip() for origin in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if origin.strip()
+]
 
 # 生产安全配置
 USE_X_FORWARDED_HOST = env.bool("USE_X_FORWARDED_HOST", default=not DEBUG and not IS_TESTING)
@@ -160,14 +177,14 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
 )
 SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG and not IS_TESTING)
 SECURE_CONTENT_TYPE_NOSNIFF = env.bool("SECURE_CONTENT_TYPE_NOSNIFF", default=True)
-SECURE_REFERRER_POLICY = env("SECURE_REFERRER_POLICY", default="same-origin")
-X_FRAME_OPTIONS = env("X_FRAME_OPTIONS", default="DENY")
+SECURE_REFERRER_POLICY = os.environ.get("SECURE_REFERRER_POLICY", "same-origin")
+X_FRAME_OPTIONS = os.environ.get("X_FRAME_OPTIONS", "DENY")
 
 # IoTDB 配置
-IOTDB_HOST = env("IOTDB_HOST", default="localhost")
+IOTDB_HOST = os.environ.get("IOTDB_HOST", "localhost")
 IOTDB_PORT = env.int("IOTDB_PORT", default=6667)
-IOTDB_USER = env("IOTDB_USER", default="root")
-IOTDB_PASSWORD = env("IOTDB_PASSWORD", default="root")
+IOTDB_USER = os.environ.get("IOTDB_USER", "root")
+IOTDB_PASSWORD = os.environ.get("IOTDB_PASSWORD", "root")
 
 # 缓存配置
 if REDIS_URL:
@@ -204,7 +221,7 @@ NINJA_JWT = {
 }
 
 # 安全限流配置
-RATE_LIMIT_CACHE_PREFIX = env("RATE_LIMIT_CACHE_PREFIX", default="ratelimit")
+RATE_LIMIT_CACHE_PREFIX = os.environ.get("RATE_LIMIT_CACHE_PREFIX", "ratelimit")
 LOGIN_RATE_LIMIT_COUNT = env.int("LOGIN_RATE_LIMIT_COUNT", default=5)
 LOGIN_RATE_LIMIT_WINDOW_SECONDS = env.int("LOGIN_RATE_LIMIT_WINDOW_SECONDS", default=300)
 REGISTER_RATE_LIMIT_COUNT = env.int("REGISTER_RATE_LIMIT_COUNT", default=3)

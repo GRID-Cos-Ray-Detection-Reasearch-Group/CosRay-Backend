@@ -1,0 +1,13 @@
+{
+  "name": "missing_payload_muon",
+  "as_user": "owner",
+  "patch": null,
+  "request": {
+    "device": "AA:BB:CC:DD:EE:FF",
+    "packet_type": "muon"
+  },
+  "expected": {
+    "status_code": 400,
+    "code": "MISSING_PAYLOAD"
+  }
+}

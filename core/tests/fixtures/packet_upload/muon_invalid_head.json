@@ -1,0 +1,19 @@
+{
+  "name": "muon_invalid_head",
+  "as_user": "owner",
+  "patch": null,
+  "request": {
+    "device": "AA:BB:CC:DD:EE:FF",
+    "packet_type": "muon",
+    "muon_packet": {
+      "package_counter": 1,
+      "utc": 1735689600,
+      "events": [{ "cpu_time": 1, "energy": 2, "pps": 3 }],
+      "head": [0, 0, 0]
+    }
+  },
+  "expected": {
+    "status_code": 400,
+    "code": "INVALID_MUON_HEAD"
+  }
+}
