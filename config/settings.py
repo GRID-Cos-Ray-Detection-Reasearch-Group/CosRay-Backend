@@ -187,7 +187,15 @@ IOTDB_USER = os.environ.get("IOTDB_USER", "root")
 IOTDB_PASSWORD = os.environ.get("IOTDB_PASSWORD", "root")
 
 # 缓存配置
-if REDIS_URL:
+if IS_TESTING:
+    # 测试环境固定使用内存缓存，避免依赖外部 Redis 服务或额外客户端包
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "cosray-backend-cache",
+        }
+    }
+elif REDIS_URL:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
