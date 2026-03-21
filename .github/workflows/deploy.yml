@@ -92,8 +92,13 @@ jobs:
               printf '[deploy] %s\n' "$1"
             }
 
+            locate_archive() {
+              find .deploy-artifacts -type f -name "${IMAGE_ARCHIVE_NAME}" | head -n 1
+            }
+
             cleanup() {
               rm -f ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" ".deploy-artifacts/django-image.tar"
+              find .deploy-artifacts -mindepth 1 -maxdepth 3 -type d -empty -delete || true
             }
 
             print_diagnostics() {
@@ -111,8 +116,14 @@ jobs:
             export DJANGO_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
             log "准备部署目录"
             mkdir -p .deploy-artifacts
+            ARCHIVE_PATH="$(locate_archive)"
+            if [ -z "${ARCHIVE_PATH}" ]; then
+              log "未找到镜像归档，输出部署目录内容"
+              find .deploy-artifacts -maxdepth 3 -mindepth 1 | sort || true
+              exit 1
+            fi
             log "解压镜像归档"
-            gzip -dc ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" > ".deploy-artifacts/django-image.tar"
+            gzip -dc "${ARCHIVE_PATH}" > ".deploy-artifacts/django-image.tar"
             log "导入 Django 镜像"
             docker load --input ".deploy-artifacts/django-image.tar"
             log "启动编排服务"
