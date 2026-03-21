@@ -5,6 +5,7 @@ Django Ninja API 路由
 import logging
 from datetime import UTC
 from datetime import datetime
+from typing import Protocol
 from typing import cast
 from uuid import uuid4
 
@@ -46,6 +47,12 @@ from .validators import normalize_mac_or_error
 from .validators import validate_packet_payload
 
 logger = logging.getLogger(__name__)
+
+
+class _UploadContextRequest(Protocol):
+    detector: Detector
+    records_written: int
+
 
 # 创建路由器, 默认使用 JWT 认证
 router = Router(auth=JWTAuth())
@@ -237,27 +244,40 @@ def get_owned_detector_or_error(
 
 
 def ingest_packet_for_detector(
+    request: HttpRequest,
     payload: PacketUpload,
     detector_mac_address: str,
     request_id: str,
-) -> tuple[int | None, ErrorResponse | None]:
+) -> tuple[int, ErrorResponse] | None:
     """根据 packet_type 写入对应数据包。"""
+    req = cast("_UploadContextRequest", request)
+    if payload.packet_type not in {"muon", "timeline"}:
+        return 400, ErrorResponse(
+            detail=f"不支持的 packet_type: {payload.packet_type}",
+            code="INVALID_PACKET_TYPE",
+            request_id=request_id,
+        )
+
     if payload.packet_type == "muon":
         if payload.muon_packet is None:
-            return None, ErrorResponse(
+            return 400, ErrorResponse(
                 detail="packet_type 为 muon 时必须提供 muon_packet",
                 code="MISSING_PAYLOAD",
                 request_id=request_id,
             )
-        return ingest_muon_packet(detector_mac_address, payload.muon_packet), None
+        records_written = ingest_muon_packet(detector_mac_address, payload.muon_packet)
+        req.records_written = records_written
+        return None
 
     if payload.timeline_packet is None:
-        return None, ErrorResponse(
+        return 400, ErrorResponse(
             detail="packet_type 为 timeline 时必须提供 timeline_packet",
             code="MISSING_PAYLOAD",
             request_id=request_id,
         )
-    return ingest_timeline_packet(detector_mac_address, payload.timeline_packet), None
+    records_written = ingest_timeline_packet(detector_mac_address, payload.timeline_packet)
+    req.records_written = records_written
+    return None
 
 
 @router.get("/users/me", response={200: CurrentUserOut, 401: ErrorResponse}, tags=["Users"])
@@ -417,10 +437,10 @@ def _resolve_upload_context_or_error(
     request: HttpRequest,
     payload: PacketUpload,
     request_id: str,
-) -> tuple[User | None, Detector | None, int | None, ErrorResponse | None]:
+) -> tuple[int, ErrorResponse] | None:
     user, auth_error = resolve_authenticated_user_or_error(request, request_id)
     if auth_error is not None:
-        return None, None, 401, auth_error
+        return 401, auth_error
     assert user is not None
 
     normalized_mac, mac_error = normalize_mac_or_error(payload.device, request_id)
@@ -433,12 +453,10 @@ def _resolve_upload_context_or_error(
                 error_code=mac_error.code or "UNKNOWN",
             ),
         )
-        return user, None, 400, mac_error
+        return 400, mac_error
     if normalized_mac is None:
         logger.error("upload_packet_missing_normalized_mac request_id=%s", request_id)
         return (
-            user,
-            None,
             400,
             build_error(
                 detail="MAC 地址格式必须为 AA:BB:CC:DD:EE:FF",
@@ -458,7 +476,7 @@ def _resolve_upload_context_or_error(
                 error_code=detector_error.code or "UNKNOWN",
             ),
         )
-        return user, None, 404, detector_error
+        return 404, detector_error
     if detector is None:
         logger.error(
             "upload_packet_missing_detector %s",
@@ -470,8 +488,6 @@ def _resolve_upload_context_or_error(
             ),
         )
         return (
-            user,
-            None,
             404,
             build_error(
                 detail=f"设备 {normalized_mac} 不存在或不属于当前用户",
@@ -480,7 +496,8 @@ def _resolve_upload_context_or_error(
             ),
         )
 
-    return user, detector, None, None
+    cast("_UploadContextRequest", request).detector = detector
+    return None
 
 
 @router.delete(
@@ -538,11 +555,12 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
     - 更新设备最后上报时间
     """
     request_id = resolve_request_id(request)
-    user, detector, error_status, error = _resolve_upload_context_or_error(request, payload, request_id)
-    if error is not None:
-        return error_status or 400, error
-    assert user is not None
-    assert detector is not None
+    context_error = _resolve_upload_context_or_error(request, payload, request_id)
+    if context_error is not None:
+        return context_error
+    user = cast("User", request.user)
+    req = cast("_UploadContextRequest", request)
+    detector = req.detector
 
     rate_limit_error = check_rate_limit(
         scope="upload",
@@ -570,10 +588,11 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
 
     # 写入 IoTDB
     try:
-        records_written, packet_error = ingest_packet_for_detector(payload, detector.mac_address, request_id)
+        packet_error = ingest_packet_for_detector(request, payload, detector.mac_address, request_id)
         if packet_error is not None:
-            return 400, packet_error
-        if records_written is None:
+            return packet_error
+        records_written = getattr(req, "records_written", None)
+        if not isinstance(records_written, int):
             return 400, ErrorResponse(detail="数据包内容无效", code="INVALID_PACKET", request_id=request_id)
 
         # 更新设备最后上报时间

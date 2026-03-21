@@ -315,6 +315,56 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertIn("request_id", response_payload)
         mock_ingest.assert_called_once()
 
+    @patch("core.api.ingest_timeline_packet", return_value=1)
+    def test_upload_timeline_request_id_is_echoed_when_provided(self, mock_ingest: MagicMock) -> None:
+        Detector.objects.create(
+            mac_address="44:55:66:77:88:99",
+            name="RequestIdDevice",
+            owner=self.user,
+            description="",
+        )
+
+        request_id = "client-request-id-0001"
+        payload = {
+            "device": "44:55:66:77:88:99",
+            "packet_type": "timeline",
+            "timeline_packet": {
+                "package_counter": 1,
+                "events": [
+                    {
+                        "cpu_time": 1,
+                        "pps": 1,
+                        "utc": 1,
+                        "pps_utc": 1,
+                        "cputime_pps": 1,
+                        "gps_long": 0,
+                        "gps_lat": 0,
+                        "gps_alt": 0,
+                        "acc_x": 0,
+                        "acc_y": 0,
+                        "acc_z": 0,
+                        "sipm_tmp": 1,
+                        "mcu_tmp": 1,
+                        "sipm_imon": 1,
+                        "sipm_vmon": 1,
+                    }
+                ],
+            },
+        }
+
+        response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            HTTP_X_REQUEST_ID=request_id,
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["request_id"], request_id)
+        self.assertEqual(response["X-Request-Id"], request_id)
+        mock_ingest.assert_called_once()
+
     @override_settings(UPLOAD_RATE_LIMIT_COUNT=1, UPLOAD_RATE_LIMIT_WINDOW_SECONDS=60)
     @patch("core.api.ingest_timeline_packet", return_value=1)
     def test_upload_rate_limit_returns_429(self, mock_ingest: MagicMock) -> None:
@@ -369,3 +419,57 @@ class UploadHttpIntegrationTest(TestCase):
         self.assertEqual(second_response.status_code, 429)
         self.assertEqual(second_response.json()["code"], "RATE_LIMIT_EXCEEDED")
         self.assertEqual(mock_ingest.call_count, 1)
+
+    @patch("core.middleware.uuid4")
+    @patch("core.api.ingest_timeline_packet", return_value=1)
+    def test_upload_timeline_request_id_is_generated_when_missing(
+        self,
+        mock_ingest: MagicMock,
+        mock_uuid4: MagicMock,
+    ) -> None:
+        Detector.objects.create(
+            mac_address="55:66:77:88:99:AA",
+            name="GeneratedRequestIdDevice",
+            owner=self.user,
+            description="",
+        )
+
+        mock_uuid4.return_value.hex = "0123456789abcdef0123456789abcdef"
+        payload = {
+            "device": "55:66:77:88:99:AA",
+            "packet_type": "timeline",
+            "timeline_packet": {
+                "package_counter": 1,
+                "events": [
+                    {
+                        "cpu_time": 1,
+                        "pps": 1,
+                        "utc": 1,
+                        "pps_utc": 1,
+                        "cputime_pps": 1,
+                        "gps_long": 0,
+                        "gps_lat": 0,
+                        "gps_alt": 0,
+                        "acc_x": 0,
+                        "acc_y": 0,
+                        "acc_z": 0,
+                        "sipm_tmp": 1,
+                        "mcu_tmp": 1,
+                        "sipm_imon": 1,
+                        "sipm_vmon": 1,
+                    }
+                ],
+            },
+        }
+
+        response = self.client.post(
+            "/api/mu-packets/",
+            data=payload,
+            content_type="application/json",
+            **self._auth_header(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["request_id"], "0123456789abcdef0123456789abcdef")
+        self.assertEqual(response["X-Request-Id"], "0123456789abcdef0123456789abcdef")
+        mock_ingest.assert_called_once()
