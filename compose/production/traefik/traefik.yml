@@ -14,24 +14,29 @@ certificatesResolvers:
   letsencrypt:
     # https://doc.traefik.io/traefik/https/acme/#lets-encrypt
     acme:
-      email: "grid-cos-ray-detection-reasearch-group@example.com"
+      email: "ops@cosray.top"
       storage: /etc/traefik/acme/acme.json
-      # https://doc.traefik.io/traefik/https/acme/#httpchallenge
-      httpChallenge:
-        entryPoint: web
+      # https://doc.traefik.io/traefik/https/acme/#tlschallenge
+      tlsChallenge: {}
 
 http:
   routers:
     web-router:
-      rule: "PathPrefix(`/`)"
+      rule: "Host(`cosray.top`)"
       entryPoints:
         - web
       middlewares:
         - csrf
       service: django
 
+    web-ip-health-router:
+      rule: "Host(`cosray.top`) && Path(`/api/health`)"
+      entryPoints:
+        - web
+      service: django
+
     web-media-router:
-      rule: "PathPrefix(`/media/`) || PathPrefix(`/static/`)"
+      rule: "Host(`cosray.top`) && (PathPrefix(`/media/`) || PathPrefix(`/static/`))"
       entryPoints:
         - web
       middlewares:
@@ -39,22 +44,24 @@ http:
       service: django-media
 
     web-secure-router:
-      rule: "PathPrefix(`/`)"
+      rule: "Host(`cosray.top`)"
       entryPoints:
         - web-secure
       middlewares:
         - csrf
       service: django
-      tls: {}
+      tls:
+        certResolver: letsencrypt
 
     web-secure-media-router:
-      rule: "PathPrefix(`/media/`) || PathPrefix(`/static/`)"
+      rule: "Host(`cosray.top`) && (PathPrefix(`/media/`) || PathPrefix(`/static/`))"
       entryPoints:
         - web-secure
       middlewares:
         - csrf
       service: django-media
-      tls: {}
+      tls:
+        certResolver: letsencrypt
 
   middlewares:
     csrf:

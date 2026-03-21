@@ -18,7 +18,8 @@ WORKDIR ${APP_HOME}
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=0 \
-    UV_INDEX_URL=https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple
+    UV_INDEX_URL=http://mirrors.cloud.aliyuncs.com/pypi/simple/
+#阿里云内网镜像源
 
 # 配置 Debian TUNA 源（加速 apt）
 RUN sed -i 's|http://deb.debian.org|https://mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources
