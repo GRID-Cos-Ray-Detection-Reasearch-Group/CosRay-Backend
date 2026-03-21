@@ -98,6 +98,7 @@ RUN DATABASE_URL="" \
     DJANGO_SETTINGS_MODULE="config.settings" \
     SECRET_KEY="dummy" \
     ALLOWED_HOSTS="localhost" \
+    REDIS_URL="redis://localhost:6379/0" \
     python manage.py compilemessages || true
 
 # 健康检查
