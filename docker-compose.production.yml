@@ -96,6 +96,7 @@ services:
       - django
     volumes:
       - ${DATA_ROOT:-/data/cosray}/traefik_acme:/etc/traefik/acme
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
       - "80:80"
       - "443:443"
@@ -127,8 +128,17 @@ services:
     image: amir20/dozzle:latest
     container_name: cosray_backend_production_dozzle
     restart: unless-stopped
-    ports:
-      - "8888:8080"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dozzle.rule=Host(`${DOZZLE_HOST:-dozzle.cosray.top}`)"
+      - "traefik.http.routers.dozzle.entrypoints=websecure"
+      - "traefik.http.routers.dozzle.tls=true"
+      - "traefik.http.routers.dozzle.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dozzle.loadbalancer.server.port=8080"
+      - "traefik.http.middlewares.dozzle-auth.basicauth.users=${DOZZLE_BASIC_AUTH}"
+      - "traefik.http.routers.dozzle.middlewares=dozzle-auth"
+    env_file:
+      - .envs/.production/dozzle
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:

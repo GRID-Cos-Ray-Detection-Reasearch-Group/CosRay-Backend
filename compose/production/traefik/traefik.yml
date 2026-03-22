@@ -3,20 +3,15 @@ log:
 
 entryPoints:
   web:
-    # http
     address: ":80"
-
-  web-secure:
-    # https
+  websecure:
     address: ":443"
 
 certificatesResolvers:
   letsencrypt:
-    # https://doc.traefik.io/traefik/https/acme/#lets-encrypt
     acme:
       email: "ops@cosray.top"
       storage: /etc/traefik/acme/acme.json
-      # https://doc.traefik.io/traefik/https/acme/#tlschallenge
       tlsChallenge: {}
 
 http:
@@ -46,7 +41,7 @@ http:
     web-secure-router:
       rule: "Host(`cosray.top`)"
       entryPoints:
-        - web-secure
+        - websecure
       middlewares:
         - csrf
       service: django
@@ -56,7 +51,7 @@ http:
     web-secure-media-router:
       rule: "Host(`cosray.top`) && (PathPrefix(`/media/`) || PathPrefix(`/static/`))"
       entryPoints:
-        - web-secure
+        - websecure
       middlewares:
         - csrf
       service: django-media
@@ -65,8 +60,6 @@ http:
 
   middlewares:
     csrf:
-      # https://doc.traefik.io/traefik/master/middlewares/http/headers/#hostsproxyheaders
-      # https://docs.djangoproject.com/en/dev/ref/csrf/#ajax
       headers:
         hostsProxyHeaders: ["X-CSRFToken"]
 
@@ -82,7 +75,10 @@ http:
           - url: http://nginx:80
 
 providers:
-  # https://doc.traefik.io/traefik/master/providers/file/
   file:
     filename: /etc/traefik/traefik.yml
     watch: true
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    watch: true
+    exposedByDefault: false
