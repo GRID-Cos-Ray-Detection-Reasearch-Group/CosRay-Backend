@@ -152,6 +152,7 @@ services:
     volumes:
       # 将数据挂载出来，防止容器重启后丢失监控记录
       - ${DATA_ROOT:-/data/cosray}/uptime_kuma:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     labels:
       - "traefik.enable=true"
       # 可以在 .env 中设置 UPTIME_KUMA_HOST 来覆盖默认的 status.cosray.top
