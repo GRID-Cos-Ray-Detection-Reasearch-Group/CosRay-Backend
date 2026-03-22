@@ -142,4 +142,22 @@ services:
     environment:
       - DOZZLE_NO_ANALYTICS=true
       - DOZZLE_LEVEL=info
-      - DOZZLE_TAILSIZE=300
+      - DOZZLE_TAIL_SIZE=300
+
+  # Uptime Kuma 状态监控与报警
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: cosray_backend_production_uptime_kuma
+    restart: unless-stopped
+    volumes:
+      # 将数据挂载出来，防止容器重启后丢失监控记录
+      - ${DATA_ROOT:-/data/cosray}/uptime_kuma:/app/data
+    labels:
+      - "traefik.enable=true"
+      # 可以在 .env 中设置 UPTIME_KUMA_HOST 来覆盖默认的 status.cosray.top
+      - "traefik.http.routers.uptime-kuma.rule=Host(`${UPTIME_KUMA_HOST:-status.cosray.top}`)"
+      - "traefik.http.routers.uptime-kuma.entrypoints=websecure"
+      - "traefik.http.routers.uptime-kuma.tls=true"
+      - "traefik.http.routers.uptime-kuma.tls.certresolver=letsencrypt"
+      # Uptime Kuma 容器内部默认监听 3001 端口
+      - "traefik.http.services.uptime-kuma.loadbalancer.server.port=3001"
