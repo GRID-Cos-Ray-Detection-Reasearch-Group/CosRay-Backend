@@ -6,6 +6,7 @@ on:
       - CI
     branches:
       - main
+      - dev # FIXME: 上线后需要改成 main 分支
     types:
       - completed
   workflow_dispatch:
