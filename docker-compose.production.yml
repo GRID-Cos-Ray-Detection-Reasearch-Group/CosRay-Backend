@@ -125,13 +125,13 @@ services:
   # 监控服务
   dozzle:
     image: amir20/dozzle:latest
-  container_name: cosray_backend_production_dozzle
-  restart: unless-stopped
-  ports:
-    - "8888:8080"
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock:ro
-  environment:
-    - DOZZLE_NO_ANALYTICS=true
-    - DOZZLE_LEVEL=info
-    - DOZZLE_TAILSIZE=300
+    container_name: cosray_backend_production_dozzle
+    restart: unless-stopped
+    ports:
+      - "8888:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      - DOZZLE_NO_ANALYTICS=true
+      - DOZZLE_LEVEL=info
+      - DOZZLE_TAILSIZE=300

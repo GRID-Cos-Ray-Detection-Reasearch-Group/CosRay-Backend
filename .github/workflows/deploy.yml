@@ -26,7 +26,7 @@ jobs:
     env:
       IMAGE_NAME: ghcr.io/grid-cos-ray-detection-reasearch-group/cosray-backend-django
       IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
-      IMAGE_ARCHIVE_NAME: cosray-backend-django-image.tar.gz
+      IMAGE_ARCHIVE_NAME: cosray-backend-images.tar.gz # 改为统称
     steps:
       - name: Checkout Code Repository
         uses: actions/checkout@v6
@@ -43,26 +43,46 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and Push Django Image
+      # 1. 构建 Django 镜像 (利用 buildx 缓存)
+      - name: Build Django Image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./compose/production/django/Dockerfile
           load: true
-          push: true
-          tags: |
-            ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-            ${{ env.IMAGE_NAME }}:main
+          tags: ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Export Django Image Archive
-        run: docker save "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" | gzip > "${{ runner.temp }}/${{ env.IMAGE_ARCHIVE_NAME }}"
+      # 2. 在 Actions 环境本地构建 Nginx 和 Traefik
+      - name: Build Nginx and Traefik Images
+        run: |
+          docker build -t cosray_backend_production_nginx -f ./compose/production/nginx/Dockerfile .
+          docker build -t cosray_backend_production_traefik -f ./compose/production/traefik/Dockerfile .
 
-      - name: Copy Django Image Archive to Server
+      # 3. 将所有自定义镜像打包成一个归档文件
+      - name: Export All Images to Archive
+        run: |
+          docker save \
+            "${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}" \
+            cosray_backend_production_nginx \
+            cosray_backend_production_traefik \
+            | gzip > "${{ runner.temp }}/${{ env.IMAGE_ARCHIVE_NAME }}"
+
+      # 4. 只传输必要的编排文件到服务器
+      - name: Copy Compose file to Server
         uses: appleboy/scp-action@v0.1.7
-        env:
-          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          source: "docker-compose.production.yml" # 只需要这一个文件，无需发送 Dockerfile
+          target: ${{ secrets.SERVER_APP_DIR }}
+
+      # 5. 传输镜像压缩包
+      - name: Copy Images Archive to Server
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
@@ -70,7 +90,9 @@ jobs:
           port: 22
           source: ${{ runner.temp }}/${{ env.IMAGE_ARCHIVE_NAME }}
           target: ${{ secrets.SERVER_APP_DIR }}/.deploy-artifacts
+          strip_components: 2
 
+      # 6. 在服务器上执行部署
       - name: Deploy on Server
         uses: appleboy/ssh-action@v1.2.0
         env:
@@ -88,47 +110,28 @@ jobs:
           script: |
             set -euo pipefail
 
-            log() {
-              printf '[deploy] %s\n' "$1"
-            }
-
-            locate_archive() {
-              find .deploy-artifacts -type f -name "${IMAGE_ARCHIVE_NAME}" | head -n 1
-            }
+            log() { printf '[deploy] %s\n' "$1"; }
 
             cleanup() {
-              rm -f ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" ".deploy-artifacts/django-image.tar"
+              rm -f ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" ".deploy-artifacts/images.tar"
               find .deploy-artifacts -mindepth 1 -maxdepth 3 -type d -empty -delete || true
             }
 
-            print_diagnostics() {
-              log "部署失败，输出最近的容器状态"
-              docker compose -f docker-compose.production.yml ps || true
-              log "输出 django 最近日志"
-              docker compose -f docker-compose.production.yml logs --tail=200 django || true
-            }
-
             trap cleanup EXIT
-            trap print_diagnostics ERR
 
             cd "${SERVER_APP_DIR}"
-
             export DJANGO_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-            log "准备部署目录"
-            mkdir -p .deploy-artifacts
-            ARCHIVE_PATH="$(locate_archive)"
-            if [ -z "${ARCHIVE_PATH}" ]; then
-              log "未找到镜像归档，输出部署目录内容"
-              find .deploy-artifacts -maxdepth 3 -mindepth 1 | sort || true
-              exit 1
-            fi
-            log "解压镜像归档"
-            gzip -dc "${ARCHIVE_PATH}" > ".deploy-artifacts/django-image.tar"
-            log "导入 Django 镜像"
-            docker load --input ".deploy-artifacts/django-image.tar"
-            log "启动编排服务"
+
+            log "解压并导入所有镜像 (Django, Nginx, Traefik)..."
+            gzip -dc ".deploy-artifacts/${IMAGE_ARCHIVE_NAME}" > ".deploy-artifacts/images.tar"
+            docker load --input ".deploy-artifacts/images.tar"
+
+            log "启动编排服务 (纯离线启动)..."
+            # 移除 --build 和 pull 动作，完全使用刚才 load 进去的本地镜像
             docker compose -f docker-compose.production.yml up -d --remove-orphans
-            log "执行健康检查"
+
+            log "执行健康检查..."
             docker compose -f docker-compose.production.yml exec -T django curl -f http://127.0.0.1:5000/api/health
-            log "清理悬空镜像"
+
+            log "清理旧镜像..."
             docker image prune -f
