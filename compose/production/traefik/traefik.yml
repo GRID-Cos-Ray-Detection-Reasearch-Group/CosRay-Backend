@@ -4,6 +4,11 @@ log:
 entryPoints:
   web:
     address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
   websecure:
     address: ":443"
 
@@ -16,34 +21,20 @@ certificatesResolvers:
 
 http:
   routers:
-    web-router:
-      rule: "Host(`cosray.top`)"
-      entryPoints:
-        - web
-      middlewares:
-        - csrf
-      service: django
-
-    web-ip-health-router:
-      rule: "Host(`cosray.top`) && Path(`/api/health`)"
-      entryPoints:
-        - web
-      service: django
-
-    web-media-router:
-      rule: "Host(`cosray.top`) && (PathPrefix(`/media/`) || PathPrefix(`/static/`))"
-      entryPoints:
-        - web
-      middlewares:
-        - csrf
-      service: django-media
-
     web-secure-router:
       rule: "Host(`cosray.top`)"
       entryPoints:
         - websecure
       middlewares:
         - csrf
+      service: django
+      tls:
+        certResolver: letsencrypt
+
+    web-secure-health-router:
+      rule: "Host(`cosray.top`) && Path(`/api/health`)"
+      entryPoints:
+        - websecure
       service: django
       tls:
         certResolver: letsencrypt
@@ -77,7 +68,7 @@ http:
 providers:
   file:
     filename: /etc/traefik/traefik.yml
-    watch: true
+    watch: false
   docker:
     endpoint: "unix:///var/run/docker.sock"
     watch: true
