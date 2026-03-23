@@ -2,7 +2,7 @@
 # ------------------------------------------------------------------------------
 DEBUG=True
 SECRET_KEY=replace-with-a-local-development-secret-key
-ALLOWED_HOSTS=localhost,127.0.0.1
+ALLOWED_HOSTS=localhost, 127.0.0.1, 10.0.2.2, 10.0.3.2
 
 # Database
 # 对应 docker-compose service name 'postgres'
