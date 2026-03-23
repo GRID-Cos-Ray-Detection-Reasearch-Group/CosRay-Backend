@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 from django.contrib.auth.models import User
 from django.core.cache import cache
+from django.db import DatabaseError
 from django.http import HttpRequest
 from django.test import Client
 from django.test import TestCase
@@ -238,6 +239,32 @@ class UploadValidationTest(TestCase):
         self.assertEqual(getattr(response, "device_name", None), "D1")
         self.detector.refresh_from_db()
         self.assertIsNotNone(self.detector.last_seen_at)
+
+    @patch("core.api.ingest_muon_packet", return_value=1)
+    @patch("core.api.Detector.save", side_effect=DatabaseError("db down"))
+    def test_upload_packet_detector_update_failure_returns_503(
+        self, mock_save: MagicMock, mock_ingest: MagicMock
+    ) -> None:
+        request = self._request_with_user(self.user)
+        payload = PacketUpload(
+            device="AA:BB:CC:DD:EE:FF",
+            packet_type="muon",
+            muon_packet=MuonPacket(
+                package_counter=1,
+                utc=1,
+                events=[MuonEvent(cpu_time=1, energy=2, pps=3)],
+                head=[0xAA, 0xBB, 0xCC],
+                tail=[0xDD, 0xEE, 0xFF],
+            ),
+        )
+
+        status_code, response = upload_packet(request, payload)
+
+        self.assertEqual(status_code, 503)
+        self.assertEqual(getattr(response, "code", None), "DEVICE_UPDATE_ERROR")
+        self.assertEqual(getattr(response, "detail", None), "设备状态更新失败")
+        mock_ingest.assert_called_once()
+        mock_save.assert_called_once()
         mock_ingest.assert_called_once()
 
 

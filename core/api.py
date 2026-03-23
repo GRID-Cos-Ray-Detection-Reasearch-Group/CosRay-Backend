@@ -12,6 +12,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.db import DatabaseError
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from ninja import Router
@@ -596,8 +597,21 @@ def upload_packet(request: HttpRequest, payload: PacketUpload) -> PacketUploadRe
             return 400, ErrorResponse(detail="数据包内容无效", code="INVALID_PACKET", request_id=request_id)
 
         # 更新设备最后上报时间
-        detector.last_seen_at = datetime.now(UTC)
-        detector.save(update_fields=["last_seen_at"])
+        try:
+            detector.last_seen_at = datetime.now(UTC)
+            detector.save(update_fields=["last_seen_at"])
+        except DatabaseError:
+            logger.exception(
+                "upload_packet_detector_update_error %s",
+                format_log_context(
+                    request_id=request_id,
+                    user_id=int(user.pk),
+                    mac_address=detector.mac_address,
+                    packet_type=payload.packet_type,
+                    error_code="DEVICE_UPDATE_ERROR",
+                ),
+            )
+            return 503, ErrorResponse(detail="设备状态更新失败", code="DEVICE_UPDATE_ERROR", request_id=request_id)
 
         logger.info(
             "upload_packet_success %s",
