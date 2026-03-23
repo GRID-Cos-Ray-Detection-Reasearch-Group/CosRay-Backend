@@ -139,6 +139,57 @@ class IoTDBPathTest(SimpleTestCase):
         mock_pool.put_back.assert_called_once_with(mock_session)
 
     @patch("core.services.get_iotdb_pool")
+    def test_ingest_muon_packet_wraps_session_acquire_failure(self, mock_get_pool: MagicMock) -> None:
+        mock_pool = MagicMock()
+        mock_pool.get_session.side_effect = Exception("auth failed")
+        mock_get_pool.return_value = mock_pool
+
+        packet = MuonPacket(
+            package_counter=1,
+            utc=1710000000,
+            events=[MuonEvent(cpu_time=100, energy=200, pps=300)],
+        )
+
+        with pytest.raises(IoTDBWriteError, match="Muon packet write failed"):
+            ingest_muon_packet("AA:BB:CC:DD:EE:FF", packet)
+
+        mock_pool.put_back.assert_not_called()
+
+    @patch("core.services.get_iotdb_pool")
+    def test_ingest_timeline_packet_wraps_session_acquire_failure(self, mock_get_pool: MagicMock) -> None:
+        mock_pool = MagicMock()
+        mock_pool.get_session.side_effect = Exception("auth failed")
+        mock_get_pool.return_value = mock_pool
+
+        packet = TimelinePacket(
+            package_counter=1,
+            events=[
+                TimelineEvent(
+                    cpu_time=1,
+                    pps=1,
+                    utc=1710000000,
+                    pps_utc=1,
+                    cputime_pps=1,
+                    gps_long=0,
+                    gps_lat=0,
+                    gps_alt=0,
+                    acc_x=0,
+                    acc_y=0,
+                    acc_z=0,
+                    sipm_tmp=1,
+                    mcu_tmp=1,
+                    sipm_imon=1,
+                    sipm_vmon=1,
+                )
+            ],
+        )
+
+        with pytest.raises(IoTDBWriteError, match="Timeline packet write failed"):
+            ingest_timeline_packet("AA:BB:CC:DD:EE:FF", packet)
+
+        mock_pool.put_back.assert_not_called()
+
+    @patch("core.services.get_iotdb_pool")
     def test_ingest_muon_packet_with_empty_events_returns_zero(self, mock_get_pool: MagicMock) -> None:
         packet = MuonPacket(package_counter=1, utc=1710000000, events=[])
 

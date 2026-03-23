@@ -4,16 +4,12 @@ IoTDB 服务层: 负责时序数据写入和连接池管理
 
 import logging
 from functools import lru_cache
-from typing import TYPE_CHECKING
 from typing import Literal
 
 from django.conf import settings
 from iotdb.SessionPool import PoolConfig
 from iotdb.SessionPool import SessionPool
 from iotdb.utils.IoTDBConstants import TSDataType
-
-if TYPE_CHECKING:
-    from iotdb.Session import Session
 
 from .schemas import MuonPacket
 from .schemas import TimelinePacket
@@ -89,9 +85,10 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
         return 0
 
     pool = get_iotdb_pool()
-    session: Session = pool.get_session()
+    session = None
 
     try:
+        session = pool.get_session()
         device_path = normalize_device_path(device_mac, "muon")
         measurements = ["cpu_time", "energy", "pps"]
         data_types = [TSDataType.INT64, TSDataType.INT32, TSDataType.INT64]
@@ -128,7 +125,8 @@ def ingest_muon_packet(device_mac: str, packet: MuonPacket) -> int:
         raise IoTDBWriteError(error_message) from exc
 
     finally:
-        pool.put_back(session)
+        if session is not None:
+            pool.put_back(session)
 
 
 # ============================================================================
@@ -147,9 +145,10 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
         return 0
 
     pool = get_iotdb_pool()
-    session: Session = pool.get_session()
+    session = None
 
     try:
+        session = pool.get_session()
         device_path = normalize_device_path(device_mac, "timeline")
 
         # Timeline 指标更多
@@ -236,4 +235,5 @@ def ingest_timeline_packet(device_mac: str, packet: TimelinePacket) -> int:
         raise IoTDBWriteError(error_message) from exc
 
     finally:
-        pool.put_back(session)
+        if session is not None:
+            pool.put_back(session)
