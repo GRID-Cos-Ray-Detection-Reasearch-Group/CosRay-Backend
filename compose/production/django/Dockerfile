@@ -39,7 +39,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY . ${APP_HOME}
 
 # ============ 阶段 2: Python Runtime Stage ============
-FROM python:3.13-slim-bookworm AS python-run-stage
+FROM python:3.13.13-slim-bookworm AS python-run-stage
 
 # Metadata
 LABEL maintainer="GRID Group <grid@example.com>"
