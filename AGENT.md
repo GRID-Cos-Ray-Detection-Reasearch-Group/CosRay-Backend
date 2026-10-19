@@ -119,11 +119,13 @@ class MuonEventSchema(Schema):
     pps: int
     timestamp: int | None = None
 
+
 class MuonPacketSchema(Schema):
     package_counter: int
     utc: int
     events: list[MuonEventSchema]
     # ... head, tail, crc (Optional)
+
 
 class PacketUploadSchema(Schema):
     device: str = Field(..., description="Device MAC Address")
@@ -167,6 +169,7 @@ from django.conf import settings
 
 _session_pool = None
 
+
 def get_iotdb_session():
     global _session_pool
     if _session_pool is None:
@@ -175,7 +178,7 @@ def get_iotdb_session():
             int(settings.IOTDB_PORT),
             settings.IOTDB_USER,
             settings.IOTDB_PASSWORD,
-            max_size=5  # 根据并发量调整
+            max_size=5,  # 根据并发量调整
         )
     return _session_pool
 ```
@@ -320,8 +323,10 @@ volumes:
 class DeviceNotFoundError(Exception):
     pass
 
+
 class DevicePermissionDeniedError(Exception):
     pass
+
 
 class IoTDBWriteError(Exception):
     pass
