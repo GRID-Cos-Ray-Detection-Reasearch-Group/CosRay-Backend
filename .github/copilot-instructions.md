@@ -96,15 +96,12 @@ from django.conf import settings
 
 _session_pool = None
 
+
 def get_iotdb_session():
     global _session_pool
     if _session_pool is None:
         _session_pool = SessionPool(
-            settings.IOTDB_HOST,
-            int(settings.IOTDB_PORT),
-            settings.IOTDB_USER,
-            settings.IOTDB_PASSWORD,
-            max_size=5
+            settings.IOTDB_HOST, int(settings.IOTDB_PORT), settings.IOTDB_USER, settings.IOTDB_PASSWORD, max_size=5
         )
     return _session_pool
 ```
@@ -127,11 +124,13 @@ def get_iotdb_session():
 from ninja import Schema
 from typing import Literal
 
+
 class MuonEventSchema(Schema):
     cpu_time: int
     energy: int
     pps: int
     timestamp: int | None = None
+
 
 class PacketUploadSchema(Schema):
     device: str  # MAC 地址
